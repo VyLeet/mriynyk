@@ -10,8 +10,8 @@ up:
 	docker compose up --build -d
 
 db:
-	DATABASE_URL=$(DATABASE_URL) uv run python load_parquet_to_postgres.py --parquet-path $(PARQUET_PATH) &
+	DATABASE_URL=$(DATABASE_URL) uv run python scripts/load_parquet_to_postgres.py --parquet-path $(PARQUET_PATH) &
 
 exec:
 	@if [ -z "$(ARGS)" ]; then echo "ARGS is required for make exec"; exit 1; fi
-	docker compose exec app uv run python call_api.py $(ARGS)
+	docker compose exec app uv run python scripts/call_api.py $(ARGS)

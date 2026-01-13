@@ -12,3 +12,7 @@ make up
 make db
 make exec ARGS='--year 8 --subject ukrainian_language --query "explain_noun_cases"'
 ```
+
+Project layout:
+- `mriynyk/` - FastAPI app and core logic
+- `scripts/` - CLI utilities (`call_api.py`, `load_parquet_to_postgres.py`, `answer_test.py`)

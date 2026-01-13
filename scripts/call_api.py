@@ -4,11 +4,17 @@ from argparse import ArgumentParser
 from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
+import sys
 from typing import Any, Final, TypedDict
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from main import Subject, Year
+PROJECT_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from mriynyk.models import Subject, Year
 
 
 API_URL_ENV_VAR: Final[str] = "API_URL"

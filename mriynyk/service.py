@@ -1,82 +1,32 @@
-from enum import Enum, StrEnum, auto
-import os
-from pathlib import Path
-from typing import Final, Optional, Sequence, TypeAlias
+from typing import Optional, Sequence, TypeAlias
 
-from dotenv import load_dotenv
-from fastapi import FastAPI
-from openai import OpenAI
-from pydantic import BaseModel
 import psycopg
+from openai import OpenAI
 from pgvector import Vector as PgVector
 from pgvector.psycopg import register_vector
 from psycopg import sql
 
-
-class Year(Enum):
-    eight = 8
-    nine = 9
-
-    def __str__(self) -> str:
-        return str(self.value)
-
-class Subject(StrEnum):
-    ukrainian_language = "Українська мова"
-    ukrainian_history = "Історія України"
-    algebra = "Алгебра"
-
-class QueryRequest(BaseModel):
-    year: Year
-    subject: Subject
-    query: str
-
-class QueryResponse(BaseModel):
-    result: str
+from mriynyk.config import (
+    DEFAULT_DISCIPLINE_COLUMN,
+    DEFAULT_GRADE_COLUMN,
+    DEFAULT_PAGE_TEXT_COLUMN,
+    DEFAULT_SCHEMA_NAME,
+    DEFAULT_TABLE_NAME,
+    DEFAULT_VECTOR_COLUMN,
+    EMBEDDING_MODEL,
+    OPENAI_BASE_URL,
+    resolve_api_key,
+    resolve_database_url,
+)
+from mriynyk.models import DisciplineName, QueryRequest, QueryResponse, Subject, Year
 
 Vector: TypeAlias = Sequence[float]
-DisciplineName: TypeAlias = str
-
-ENV_FILE_PATH: Final = Path(".env")
-API_KEY_ENV_VARS: Final = ("LAPATHON_API_KEY", "OPENAI_API_KEY")
-DATABASE_URL_ENV_VARS: Final = ("DATABASE_URL", "PG_DSN", "POSTGRES_URL")
-EMBEDDING_MODEL: Final = "text-embedding-qwen"
-EMBEDDING_BASE_URL: Final = "http://146.59.127.106:4000"
-DEFAULT_SCHEMA_NAME: Final = "public"
-DEFAULT_TABLE_NAME: Final = "pages_for_hackathon"
-DEFAULT_VECTOR_COLUMN: Final = "page_text_embedding"
-DEFAULT_PAGE_TEXT_COLUMN: Final = "page_text"
-DEFAULT_GRADE_COLUMN: Final = "grade"
-DEFAULT_DISCIPLINE_COLUMN: Final = "global_discipline_name"
-
-def load_environment() -> None:
-    load_dotenv(ENV_FILE_PATH)
-
-def resolve_api_key() -> str:
-    for env_name in API_KEY_ENV_VARS:
-        env_value = os.environ.get(env_name)
-        if env_value:
-            return env_value
-    raise ValueError(
-        "API key missing. Set LAPATHON_API_KEY or OPENAI_API_KEY in .env."
-    )
-
-
-def resolve_database_url(database_url: str | None) -> str:
-    if database_url:
-        return database_url
-    for env_name in DATABASE_URL_ENV_VARS:
-        env_value = os.environ.get(env_name)
-        if env_value:
-            return env_value
-    raise ValueError(
-        "Database URL missing. Set DATABASE_URL/PG_DSN/POSTGRES_URL."
-    )
 
 
 def embed_query(query: str) -> list[float]:
     client = OpenAI(
         api_key=resolve_api_key(),
-        base_url=EMBEDDING_BASE_URL,
+        base_url=OPENAI_BASE_URL,
     )
     response = client.embeddings.create(
         input=query,
@@ -121,19 +71,26 @@ def fetch_closest_page_text(
         raise ValueError("No rows found in the database.")
     return str(row[0])
 
+
 def answer_directly(query: str, year: Year, subject: Subject) -> Optional[str]:
     client = OpenAI(
         api_key=resolve_api_key(),
-        base_url="http://146.59.127.106:4000"
+        base_url=OPENAI_BASE_URL,
     )
 
     response = client.chat.completions.create(
         model="lapa",
         messages=[
-            {"role": "user", "content": f"Поясни цю тему з предмету {subject.value} учню {year.value}-го класу: {query}"}
+            {
+                "role": "user",
+                "content": (
+                    "Поясни цю тему з предмету "
+                    f"{subject.value} учню {year.value}-го класу: {query}"
+                ),
+            }
         ],
         temperature=0.7,
-        max_tokens=100
+        max_tokens=100,
     )
     return response.choices[0].message.content
 
@@ -160,16 +117,7 @@ def answer_query(query: str, year: Year, subject: Subject) -> str:
         discipline_name=discipline_name,
     )
 
+
 def answer_request(request: QueryRequest) -> QueryResponse:
     response_text = answer_query(request.query, request.year, request.subject)
     return QueryResponse(result=response_text)
-
-app = FastAPI()
-
-@app.on_event("startup")
-def handle_startup() -> None:
-    load_environment()
-
-@app.post("/answer", response_model=QueryResponse)
-def answer(request: QueryRequest) -> QueryResponse:
-    return answer_request(request)
