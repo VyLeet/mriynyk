@@ -7,6 +7,7 @@ Prerequisites:
 
 First-time setup:
 ```bash
+mv {PATH_TO_Lapathon2026 Mriia public files} data
 make up
 make db
 make exec ARGS='--year 8 --subject ukrainian_language --query "explain_noun_cases"'
