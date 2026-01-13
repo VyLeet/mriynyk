@@ -1,7 +1,7 @@
 from enum import Enum, StrEnum, auto
 import os
 from pathlib import Path
-from typing import Final, Sequence, TypeAlias
+from typing import Final, Optional, Sequence, TypeAlias
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -121,11 +121,32 @@ def fetch_closest_page_text(
         raise ValueError("No rows found in the database.")
     return str(row[0])
 
+def answer_directly(query: str, year: Year, subject: Subject) -> Optional[str]:
+    client = OpenAI(
+        api_key=resolve_api_key(),
+        base_url="http://146.59.127.106:4000"
+    )
+
+    response = client.chat.completions.create(
+        model="lapa",
+        messages=[
+            {"role": "user", "content": f"Поясни цю тему з предмету {subject.value} учню {year.value}-го класу: {query}"}
+        ],
+        temperature=0.7,
+        max_tokens=100
+    )
+    return response.choices[0].message.content
+
 
 def answer_query(query: str, year: Year, subject: Subject) -> str:
-    vector = embed_query(query)
+    direct_answer = answer_directly(query=query, year=year, subject=subject)
+    if direct_answer is None:
+        raise ValueError("Direct answer missing from the model response.")
+
+    vector = embed_query(direct_answer)
     database_url = resolve_database_url(None)
     discipline_name: DisciplineName = subject.value
+
     return fetch_closest_page_text(
         database_url=database_url,
         vector=vector,
