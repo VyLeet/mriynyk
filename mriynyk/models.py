@@ -29,3 +29,48 @@ class QueryResponse(BaseModel):
 
 
 DisciplineName: TypeAlias = str
+
+
+class StudentListItem(BaseModel):
+    id: int
+    label: str
+
+
+class AbsenceItem(BaseModel):
+    date: str
+    subject: str
+    reason: str
+
+
+class ScoreItem(BaseModel):
+    date: str
+    subject: str
+    score: float | None
+
+
+class StudentDataResponse(BaseModel):
+    absences: list[AbsenceItem]
+    scores: list[ScoreItem]
+
+
+class SubjectAverage(BaseModel):
+    subject: str
+    average: float
+
+
+class SubjectCount(BaseModel):
+    subject: str
+    count: int
+
+
+class StudentAverage(BaseModel):
+    student_id: int
+    label: str
+    average: float
+
+
+class OverviewResponse(BaseModel):
+    average_scores: list[SubjectAverage]
+    absences_by_subject: list[SubjectCount]
+    top_students: list[StudentAverage]
+    bottom_students: list[StudentAverage]

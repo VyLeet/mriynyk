@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Освітній RAG-центр</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo">
+            <img src="assets/mriynyk_logo.png" alt="Мрійник" />
+          </div>
+          <div>
+            <div class="brand-name">Мрійник</div>
+            <div class="brand-tag">Освітній помічник</div>
+          </div>
+        </div>
+        <div class="topbar-spacer" aria-hidden="true"></div>
+        <nav class="nav">
+          <a class="nav-link active" href="#" data-view="overview">Огляд</a>
+          <a class="nav-link" href="#" data-view="students">Учні</a>
+          <a class="nav-link" href="#" data-view="notes">Конспект</a>
+        </nav>
+        <div class="topbar-spacer" aria-hidden="true"></div>
+        <div class="mode-toggle" role="tablist" aria-label="Режим користувача">
+          <button class="mode-btn active" data-mode="teacher" aria-selected="true">
+            Вчитель
+          </button>
+          <button class="mode-btn" data-mode="student" aria-selected="false">
+            Учень
+          </button>
+        </div>
+        <button class="icon-btn" aria-label="Сповіщення">
+          <span class="icon-dot"></span>
+        </button>
+      </header>
+
+      <main>
+        <div id="teacher-mode">
+          <section class="hero">
+            <div class="hero-stack">
+              <div class="eyebrow" id="hero-eyebrow">Огляд</div>
+              <h1 id="hero-title">Пульс навчального процесу</h1>
+              <p class="subtle" id="hero-subtitle">
+                Оцінюйте успішність, відвідуваність і прогрес класу, формулюйте теми та
+                створюйте рекомендації через RAG.
+              </p>
+              <div class="hero-controls">
+                <label class="field hero-field">
+                  <span>Клас</span>
+                  <select id="year-select" aria-label="Оберіть клас">
+                    <option value="9" selected>9</option>
+                    <option value="8">8</option>
+                  </select>
+                </label>
+                <label class="field hero-field student-filter">
+                  <span>Учень</span>
+                  <select id="teacher-student-select" aria-label="Оберіть учня"></select>
+                </label>
+              </div>
+            </div>
+            <div class="hero-panels" id="hero-panels">
+              <div class="hero-panel" data-hero-panel="overview">
+                <article class="card" style="--delay: 0.15s">
+                  <div class="card-head">
+                    <div>
+                      <div class="eyebrow">Лідери</div>
+                      <h3>Найбільш успішні учні</h3>
+                    </div>
+                  </div>
+                  <div class="list" id="top-students-list"></div>
+                </article>
+
+                <article class="card" style="--delay: 0.2s">
+                  <div class="card-head">
+                    <div>
+                      <div class="eyebrow">Увага</div>
+                      <h3>Найменш успішні учні</h3>
+                    </div>
+                  </div>
+                  <div class="list" id="bottom-students-list"></div>
+                </article>
+              </div>
+
+              <div class="hero-panel is-hidden" data-hero-panel="students">
+                <article class="card" style="--delay: 0.05s">
+                  <div class="card-head">
+                    <div>
+                      <div class="eyebrow" id="teacher-student-eyebrow">Учень</div>
+                      <h3>Профіль та статистика</h3>
+                    </div>
+                    <div class="chip">Останні 30 днів</div>
+                  </div>
+                  <div class="control-row">
+                    <label class="field">
+                      <span>Предмет</span>
+                      <select id="teacher-subject-filter" aria-label="Фільтр предмету">
+                        <option value="all">Усі</option>
+                        <option value="Алгебра">Algebra</option>
+                        <option value="Українська мова">Ukrainian language</option>
+                        <option value="Історія України">Ukrainian history</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="stat-grid">
+                    <div class="stat">
+                      <div class="stat-label">Пропусків</div>
+                      <div class="stat-value" id="teacher-monthly-absences">—</div>
+                    </div>
+                    <div class="stat">
+                      <div class="stat-label">Середній бал</div>
+                      <div class="stat-value" id="teacher-monthly-average">—</div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <section id="overview-view" class="cards-grid view-section">
+            <article class="card wide" style="--delay: 0.05s">
+              <div class="card-head">
+                <div>
+                  <div class="eyebrow">Оцінки</div>
+                  <h3>Середня оцінка</h3>
+                </div>
+                <div class="chip">Останні 30 днів</div>
+              </div>
+              <div class="bar-chart" id="overview-average-chart"></div>
+            </article>
+
+            <article class="card wide" style="--delay: 0.1s">
+              <div class="card-head">
+                <div>
+                  <div class="eyebrow">Відвідування</div>
+                  <h3>Пропусків</h3>
+                </div>
+                <div class="chip">Останні 30 днів</div>
+              </div>
+              <div class="bar-chart" id="overview-absences-chart"></div>
+            </article>
+          </section>
+
+          <section id="students-view" class="cards-grid view-section is-hidden">
+            <article class="card" style="--delay: 0.1s">
+              <div class="card-head">
+                <div>
+                  <div class="eyebrow">Відвідування</div>
+                  <h3>Останні пропуски</h3>
+                </div>
+                <div class="chip">30 днів</div>
+              </div>
+              <div class="list" id="teacher-absences-list"></div>
+              <div class="card-actions">
+                <button class="btn primary">Переглянути журнал</button>
+                <button class="btn ghost">Експорт</button>
+              </div>
+            </article>
+
+            <article class="card" style="--delay: 0.15s">
+              <div class="card-head">
+                <div>
+                  <div class="eyebrow">Успішність</div>
+                  <h3>Оцінки за предметами</h3>
+                </div>
+                <div class="card-head-actions">
+                  <div class="day-nav" aria-label="Перемикач дня оцінок">
+                    <div class="chip success" id="score-trend">+2%</div>
+                    <button class="icon-btn small" id="scores-prev" aria-label="Попередній день">
+                      &lt;
+                    </button>
+                    <div class="chip" id="scores-day">—</div>
+                    <button class="icon-btn small" id="scores-next" aria-label="Наступний день">
+                      &gt;
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="list" id="teacher-scores-list"></div>
+              <div class="card-actions">
+                <button class="btn primary">Деталі прогресу</button>
+                <button class="btn ghost">Порівняння</button>
+              </div>
+            </article>
+
+          </section>
+
+          <section id="notes-view" class="cards-grid view-section is-hidden">
+            <article class="card wide" style="--delay: 0.05s">
+              <div class="card-head">
+                <div>
+                  <div class="eyebrow">RAG-запит</div>
+                  <h3>Тема для рекомендації</h3>
+                </div>
+                <div class="chip">/answer</div>
+              </div>
+              <div class="rag-form">
+                <label class="field">
+                  <span>Предмет</span>
+                  <select id="rag-subject" aria-label="Оберіть предмет">
+                    <option value="Алгебра">Algebra</option>
+                    <option value="Українська мова">Ukrainian language</option>
+                    <option value="Історія України">Ukrainian history</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Тема</span>
+                  <textarea
+                    id="rag-topic"
+                    rows="3"
+                    placeholder="Напр., Лінійні рівняння або Рід дієслів"
+                  ></textarea>
+                </label>
+                <label class="field">
+                  <span>Вихід RAG</span>
+                  <textarea id="rag-output" rows="5" readonly></textarea>
+                </label>
+                <div class="status" id="rag-status">Готові сформувати запит.</div>
+              </div>
+              <div class="card-actions">
+                <button class="btn primary" id="rag-generate">Згенерувати відповідь</button>
+                <button class="btn ghost" id="rag-send">Надіслати учню</button>
+                <button class="btn ghost" id="rag-clear">Очистити</button>
+              </div>
+            </article>
+          </section>
+        </div>
+
+        <section id="student-mode" class="cards-grid student-grid is-hidden">
+          <article class="card" style="--delay: 0.05s">
+            <div class="card-head">
+              <div>
+                <div class="eyebrow">Профіль</div>
+                <h3>Мій запис</h3>
+              </div>
+              <div class="chip" id="student-status">Активний</div>
+            </div>
+            <div class="control-row">
+              <label class="field">
+                <span>Я</span>
+                <select id="student-self-select" aria-label="Оберіть себе"></select>
+              </label>
+            </div>
+            <div class="stat-grid">
+              <div class="stat">
+                <div class="stat-label">Пропусків</div>
+                <div class="stat-value" id="student-absences-count">0</div>
+                <div class="muted">Останні 30 днів</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Середній бал</div>
+                <div class="stat-value" id="student-average-score">0</div>
+                <div class="muted">Поточна вибірка</div>
+              </div>
+            </div>
+            <div class="card-actions">
+              <button class="btn primary">Запитати вчителя</button>
+              <button class="btn ghost">Мій розклад</button>
+            </div>
+          </article>
+
+          <article class="card wide" style="--delay: 0.1s">
+            <div class="card-head">
+              <div>
+                <div class="eyebrow">Вхідні рекомендації</div>
+                <h3>Повідомлення від вчителя</h3>
+              </div>
+              <div class="chip" id="student-message-count">0</div>
+            </div>
+            <div class="message-list" id="student-messages"></div>
+          </article>
+
+          <article class="card" style="--delay: 0.15s">
+            <div class="card-head">
+              <div>
+                <div class="eyebrow">Фокус</div>
+                <h3>Наступні кроки</h3>
+              </div>
+              <div class="chip">Тиждень</div>
+            </div>
+            <ul class="checklist">
+              <li>Переглянь матеріал з теми RAG</li>
+              <li>Склади короткий конспект (5-7 пунктів)</li>
+              <li>Постав одне уточнююче питання</li>
+            </ul>
+            <div class="card-actions">
+              <button class="btn primary">Відмітити прогрес</button>
+              <button class="btn ghost">Планер</button>
+            </div>
+          </article>
+        </section>
+
+      </main>
+    </div>
+
+    <button class="floating-help" aria-label="Відкрити помічника">
+      <span>?</span>
+    </button>
+
+    <script src="app.js"></script>
+  </body>
+</html>
