@@ -13,10 +13,8 @@ DATABASE_URL_ENV_VARS: Final[tuple[str, ...]] = (
     "POSTGRES_URL",
 )
 LAPA_PROVIDER_BASE_URL: Final[str] = "http://146.59.127.106:4000"
-EMBEDDING_MODEL: Final[str] = "text-embedding-qwen"
 DEFAULT_SCHEMA_NAME: Final[str] = "public"
 DEFAULT_TABLE_NAME: Final[str] = "pages_for_hackathon"
-DEFAULT_VECTOR_COLUMN: Final[str] = "page_text_embedding"
 DEFAULT_PAGE_TEXT_COLUMN: Final[str] = "page_text"
 DEFAULT_GRADE_COLUMN: Final[str] = "grade"
 DEFAULT_DISCIPLINE_COLUMN: Final[str] = "global_discipline_name"

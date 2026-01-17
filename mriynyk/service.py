@@ -1,10 +1,9 @@
-from typing import List, Optional, Sequence, TypeAlias
+import logging
+from typing import List, Optional, Sequence
 
 import psycopg
 from psycopg import sql
 from openai import OpenAI
-from pgvector.psycopg import register_vector
-from pgvector import Vector as PgVector
 from jinja2 import Environment, FileSystemLoader
 
 from mriynyk.config import (
@@ -13,28 +12,11 @@ from mriynyk.config import (
     DEFAULT_PAGE_TEXT_COLUMN,
     DEFAULT_SCHEMA_NAME,
     DEFAULT_TABLE_NAME,
-    DEFAULT_VECTOR_COLUMN,
-    EMBEDDING_MODEL,
     LAPA_PROVIDER_BASE_URL,
     resolve_api_key,
     resolve_database_url,
 )
 from mriynyk.models import DisciplineName, Page, Subject, TopicRequest, TopicResponse, Workbook, Year
-
-Vector: TypeAlias = Sequence[float]
-
-
-def embed_query(query: str) -> list[float]:
-    client = OpenAI(
-        api_key=resolve_api_key(),
-        base_url=LAPA_PROVIDER_BASE_URL,
-    )
-    response = client.embeddings.create(
-        input=query,
-        model=EMBEDDING_MODEL,
-        encoding_format="float",
-    )
-    return list(response.data[0].embedding)
 
 
 def _extract_exercises(page_metadata: object) -> List[str]:
@@ -54,23 +36,55 @@ def _extract_exercises(page_metadata: object) -> List[str]:
     return exercise_texts
 
 
+def pick_topic(topic: str, topics: List[str]) -> str:
+    env = Environment(loader=FileSystemLoader("prompts"))
+    template = env.get_template("pick_topic.j2")
+    prompt = template.render(
+        {
+            "topic": topic,
+            "topics": topics,
+        }
+    )
+
+    client = OpenAI(
+        api_key=resolve_api_key(),
+        base_url=LAPA_PROVIDER_BASE_URL,
+    )
+    response = client.chat.completions.create(
+        model="lapa",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        temperature=0,
+        max_tokens=100,
+    )
+    try:
+        topic_index = int(response.choices[0].message.content or "-1")
+    except ValueError:
+        topic_index = -1
+
+    topic = topics[topic_index]
+    logging.info(f"Вибрана тема: {topic}") 
+    return topic
+
+
 def fetch_closest_chapter_pages(
     database_url: str,
-    vector: Vector,
+    topic: str,
     grade_value: int,
     discipline_name: DisciplineName,
 ) -> List[Page]:
-    query_vector = PgVector(vector)
-    closest_topic_sql = sql.SQL(
-        "SELECT {} FROM {}.{} WHERE {} = %s AND {} = %s ORDER BY {} <-> %s LIMIT 1"
-    ).format(
+    unique_topics_sql = sql.SQL("SELECT DISTINCT {} FROM {}.{} WHERE {} = %s AND {} = %s").format(
         sql.Identifier("topic_title"),
         sql.Identifier(DEFAULT_SCHEMA_NAME),
         sql.Identifier(DEFAULT_TABLE_NAME),
         sql.Identifier(DEFAULT_GRADE_COLUMN),
         sql.Identifier(DEFAULT_DISCIPLINE_COLUMN),
-        sql.Identifier(DEFAULT_VECTOR_COLUMN),
     )
+
     pages_sql = sql.SQL(
         "SELECT {}, {} FROM {}.{} WHERE {} = %s AND {} = %s AND {} = %s "
         "ORDER BY (substring({}::text from '[\"'']book_page_number[\"'']\\s*:\\s*([0-9]+)'))::int "
@@ -86,16 +100,17 @@ def fetch_closest_chapter_pages(
         sql.Identifier("page_metadata"),
     )
     with psycopg.connect(database_url) as connection:
-        register_vector(connection)
         with connection.cursor() as cursor:
             cursor.execute(
-                closest_topic_sql,
-                (grade_value, discipline_name, query_vector),
+                unique_topics_sql,
+                (grade_value, discipline_name),
             )
-            row = cursor.fetchone()
-            if row is None:
-                raise ValueError("No rows found in the database.")
-            topic_title = row[0]
+            rows = cursor.fetchall()
+            if not rows:
+                raise ValueError("No topics found in the database.")
+            topics = [row[0] for row in rows]
+            topic_title = pick_topic(topic, topics)
+
             cursor.execute(
                 pages_sql,
                 (grade_value, discipline_name, topic_title),
@@ -113,28 +128,6 @@ def fetch_closest_chapter_pages(
         )
     return pages
 
-
-def answer_directly(topic: str, year: Year, subject: Subject) -> Optional[str]:
-    client = OpenAI(
-        api_key=resolve_api_key(),
-        base_url=LAPA_PROVIDER_BASE_URL,
-    )
-
-    response = client.chat.completions.create(
-        model="lapa",
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    "Поясни цю тему з предмету "
-                    f"{subject.value} учню {year.value}-го класу: {topic}"
-                ),
-            }
-        ],
-        temperature=0.7,
-        max_tokens=100,
-    )
-    return response.choices[0].message.content
 
 def generate_workbook_prompt(
     topic: str,
@@ -154,7 +147,8 @@ def generate_workbook_prompt(
     )
     return prompt
 
-# TODO: – Compare quality of higher/lower reasoning efforts
+
+# TODO: – Compare quality of higher/lower reasoning efforts
 def generate_workbook(
     topic: str,
     subject: Subject,
@@ -175,24 +169,20 @@ def generate_workbook(
         model="gpt-5.2",
         reasoning={"effort": "low"},
         input=prompt,
-        text_format=Workbook
+        text_format=Workbook,
     )
 
     workbook = response.output_parsed
     return workbook
 
-def answer_topic(topic: str, year: Year, subject: Subject, student_info: str) -> Workbook:
-    direct_answer = answer_directly(topic=topic, year=year, subject=subject)
-    if direct_answer is None:
-        raise ValueError("Direct answer missing from the model response.")
 
-    vector = embed_query(direct_answer)
+def answer_topic(topic: str, year: Year, subject: Subject, student_info: str) -> Workbook:
     database_url = resolve_database_url(None)
     discipline_name: DisciplineName = subject.value
 
     closest_chapter_pages = fetch_closest_chapter_pages(
         database_url=database_url,
-        vector=vector,
+        topic=topic,
         grade_value=year.value,
         discipline_name=discipline_name,
     )

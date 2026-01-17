@@ -1,3 +1,5 @@
+import logging
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI, Query
@@ -20,6 +22,7 @@ FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
 @app.on_event("startup")
 def handle_startup() -> None:
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     load_environment()
 
 
