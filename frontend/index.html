@@ -50,7 +50,7 @@
               <h1 id="hero-title">Пульс навчального процесу</h1>
               <p class="subtle" id="hero-subtitle">
                 Оцінюйте успішність, відвідуваність і прогрес класу, формулюйте теми та
-                створюйте рекомендації через RAG.
+                створюйте персоналізований конспект через RAG.
               </p>
               <div class="hero-controls">
                 <label class="field hero-field">
@@ -191,14 +191,14 @@
 
           <section id="notes-view" class="cards-grid view-section is-hidden">
             <article class="card wide" style="--delay: 0.05s">
-              <div class="card-head">
-                <div>
-                  <div class="eyebrow">RAG-запит</div>
-                  <h3>Тема для рекомендації</h3>
+                <div class="card-head">
+                  <div>
+                    <div class="eyebrow">RAG-запит</div>
+                    <h3>Тема для конспекту</h3>
+                  </div>
+                  <div class="chip">/answer</div>
                 </div>
-                <div class="chip">/answer</div>
-              </div>
-              <div class="rag-form">
+                <div class="rag-form">
                 <label class="field">
                   <span>Тема</span>
                   <textarea
@@ -215,10 +215,16 @@
                     placeholder="Напр., потребує більше прикладів, любить короткі визначення"
                   ></textarea>
                 </label>
-                <label class="field">
+                <div class="field">
                   <span>Персоналізований конспект</span>
-                  <textarea id="rag-output" rows="5" readonly></textarea>
-                </label>
+                  <div
+                    id="rag-output"
+                    class="markdown-output markdown-body is-empty"
+                    data-placeholder="Згенерований конспект зʼявиться тут."
+                    role="region"
+                    aria-live="polite"
+                  ></div>
+                </div>
                 <div class="status" id="rag-status">Готові сформувати запит.</div>
               </div>
               <div class="card-actions">
@@ -231,7 +237,7 @@
         </div>
 
         <section id="student-mode" class="cards-grid student-grid is-hidden">
-          <article class="card" style="--delay: 0.05s">
+          <article class="card wide student-profile" style="--delay: 0.05s">
             <div class="card-head">
               <div>
                 <div class="eyebrow">Профіль</div>
@@ -239,34 +245,36 @@
               </div>
               <div class="chip" id="student-status">Активний</div>
             </div>
-            <div class="control-row">
-              <label class="field">
-                <span>Я</span>
-                <select id="student-self-select" aria-label="Оберіть себе"></select>
-              </label>
-            </div>
-            <div class="stat-grid">
-              <div class="stat">
-                <div class="stat-label">Пропусків</div>
-                <div class="stat-value" id="student-absences-count">0</div>
-                <div class="muted">Останні 30 днів</div>
+            <div class="profile-grid">
+              <div class="profile-controls">
+                <label class="field">
+                  <span>Я</span>
+                  <select id="student-self-select" aria-label="Оберіть себе"></select>
+                </label>
+                <div class="card-actions">
+                  <button class="btn primary">Запитати вчителя</button>
+                  <button class="btn ghost">Мій розклад</button>
+                </div>
               </div>
-              <div class="stat">
-                <div class="stat-label">Середній бал</div>
-                <div class="stat-value" id="student-average-score">0</div>
-                <div class="muted">Поточна вибірка</div>
+              <div class="stat-grid">
+                <div class="stat">
+                  <div class="stat-label">Пропусків</div>
+                  <div class="stat-value" id="student-absences-count">0</div>
+                  <div class="muted">Останні 30 днів</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-label">Середній бал</div>
+                  <div class="stat-value" id="student-average-score">0</div>
+                  <div class="muted">Поточна вибірка</div>
+                </div>
               </div>
-            </div>
-            <div class="card-actions">
-              <button class="btn primary">Запитати вчителя</button>
-              <button class="btn ghost">Мій розклад</button>
             </div>
           </article>
 
-          <article class="card wide" style="--delay: 0.1s">
+          <article class="card student-message" style="--delay: 0.1s">
             <div class="card-head">
               <div>
-                <div class="eyebrow">Вхідні рекомендації</div>
+                <div class="eyebrow">Персоналізований конспект</div>
                 <h3>Повідомлення від вчителя</h3>
               </div>
               <div class="chip" id="student-message-count">0</div>
@@ -277,10 +285,9 @@
           <article class="card" style="--delay: 0.15s">
             <div class="card-head">
               <div>
-                <div class="eyebrow">Фокус</div>
-                <h3>Наступні кроки</h3>
+                <div class="eyebrow">Завдання</div>
+                <h3>Зробити вправи</h3>
               </div>
-              <div class="chip">Тиждень</div>
             </div>
             <ul class="checklist">
               <li>Переглянь матеріал з теми RAG</li>
@@ -288,8 +295,7 @@
               <li>Постав одне уточнююче питання</li>
             </ul>
             <div class="card-actions">
-              <button class="btn primary">Відмітити прогрес</button>
-              <button class="btn ghost">Планер</button>
+              <button class="btn primary">Перейти до вправ</button>
             </div>
           </article>
         </section>

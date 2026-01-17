@@ -59,6 +59,7 @@ const ragStatus = document.querySelector("#rag-status");
 const ragGenerate = document.querySelector("#rag-generate");
 const ragSend = document.querySelector("#rag-send");
 const ragClear = document.querySelector("#rag-clear");
+let ragOutputValue = "";
 
 const activityList = document.querySelector("#activity-list");
 const activityClear = document.querySelector("#activity-clear");
@@ -150,6 +151,153 @@ const setListMessage = (container, message) => {
   note.className = "muted";
   note.textContent = message;
   container.appendChild(note);
+};
+
+const escapeHtml = (value) =>
+  value.replace(/[&<>"']/g, (char) => {
+    const map = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return map[char] ?? char;
+  });
+
+const formatInlineMarkdown = (value) => {
+  let text = escapeHtml(value);
+  text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+  text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  text = text.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+  );
+  return text;
+};
+
+const renderMarkdown = (input) => {
+  const raw = String(input ?? "");
+  if (!raw.trim()) {
+    return "";
+  }
+
+  const lines = raw.replace(/\r\n?/g, "\n").split("\n");
+  const output = [];
+  let paragraph = [];
+  let listType = null;
+  let codeBlock = null;
+  let codeLang = "";
+
+  const flushParagraph = () => {
+    if (!paragraph.length) {
+      return;
+    }
+    const text = paragraph.map((line) => formatInlineMarkdown(line)).join("<br />");
+    output.push(`<p>${text}</p>`);
+    paragraph = [];
+  };
+
+  const flushList = () => {
+    if (!listType) {
+      return;
+    }
+    output.push(`</${listType}>`);
+    listType = null;
+  };
+
+  const openList = (type) => {
+    if (listType === type) {
+      return;
+    }
+    flushList();
+    listType = type;
+    output.push(`<${type}>`);
+  };
+
+  const closeCodeBlock = () => {
+    const codeText = escapeHtml(codeBlock.join("\n"));
+    const langClass = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : "";
+    output.push(`<pre><code${langClass}>${codeText}</code></pre>`);
+    codeBlock = null;
+    codeLang = "";
+  };
+
+  lines.forEach((line) => {
+    if (codeBlock) {
+      if (line.trim().startsWith("```")) {
+        closeCodeBlock();
+        return;
+      }
+      codeBlock.push(line);
+      return;
+    }
+
+    if (line.trim().startsWith("```")) {
+      flushParagraph();
+      flushList();
+      codeBlock = [];
+      codeLang = line.trim().slice(3).trim();
+      return;
+    }
+
+    if (!line.trim()) {
+      flushParagraph();
+      flushList();
+      return;
+    }
+
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const level = heading[1].length;
+      output.push(`<h${level}>${formatInlineMarkdown(heading[2])}</h${level}>`);
+      return;
+    }
+
+    const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ordered) {
+      flushParagraph();
+      openList("ol");
+      output.push(`<li>${formatInlineMarkdown(ordered[1])}</li>`);
+      return;
+    }
+
+    const unordered = line.match(/^\s*[-*]\s+(.*)$/);
+    if (unordered) {
+      flushParagraph();
+      openList("ul");
+      output.push(`<li>${formatInlineMarkdown(unordered[1])}</li>`);
+      return;
+    }
+
+    if (listType) {
+      flushList();
+    }
+    paragraph.push(line);
+  });
+
+  if (codeBlock) {
+    closeCodeBlock();
+  }
+
+  flushParagraph();
+  flushList();
+
+  return output.join("");
+};
+
+const setMarkdownContent = (container, value) => {
+  const text = String(value ?? "");
+  container.innerHTML = renderMarkdown(text);
+  container.classList.toggle("is-empty", !text.trim());
+  return text;
+};
+
+const setRagOutput = (value) => {
+  ragOutputValue = setMarkdownContent(ragOutput, value);
 };
 
 const buildOptions = (select, options, selectedId) => {
@@ -589,7 +737,8 @@ const updateStudentView = async () => {
       meta.className = "message-meta";
       meta.textContent = `${message.subject} • ${formatDate(message.createdAt)}`;
       const body = document.createElement("div");
-      body.textContent = message.output;
+      body.className = "message-body markdown-body";
+      body.innerHTML = renderMarkdown(message.output ?? "");
       card.append(title, meta, body);
       return card;
     });
@@ -650,7 +799,7 @@ const addActivity = (title, subtitle) => {
 const sendRagOutput = () => {
   const studentId = teacherStudentSelect.value;
   const topic = ragTopic.value.trim();
-  const output = ragOutput.value.trim();
+  const output = ragOutputValue.trim();
   if (!output) {
     ragStatus.textContent = "Немає згенерованої відповіді для відправлення.";
     return;
@@ -671,15 +820,15 @@ const sendRagOutput = () => {
   saveStorage(STORAGE_MESSAGES, messages);
 
   const studentLabel = students.find((student) => String(student.id) === String(studentId))?.label;
-  addActivity("RAG-рекомендація надіслана", `${studentLabel ?? studentId}`);
-  ragStatus.textContent = "Рекомендацію надіслано учню.";
+  addActivity("RAG-конспект надіслано", `${studentLabel ?? studentId}`);
+  ragStatus.textContent = "Конспект надіслано учню.";
   updateStudentView();
 };
 
 const clearRagForm = () => {
   ragTopic.value = "";
   ragStudentInfo.value = "";
-  ragOutput.value = "";
+  setRagOutput("");
   ragStatus.textContent = "Готові сформувати запит.";
 };
 
@@ -711,11 +860,11 @@ const requestRag = async () => {
       throw new Error(`HTTP ${response.status}`);
     }
     const data = await response.json();
-    ragOutput.value = data.result ?? "";
+    setRagOutput(data.result ?? "");
     ragStatus.textContent = "Відповідь готова до перегляду.";
     addActivity("RAG відповідь згенеровано", `Тема: ${topic}`);
   } catch (error) {
-    ragOutput.value = "";
+    setRagOutput("");
     ragStatus.textContent = "Не вдалося звернутися до /answer. Перевірте API.";
   } finally {
     ragGenerate.disabled = false;
