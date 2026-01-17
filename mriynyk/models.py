@@ -32,7 +32,7 @@ class TopicRequest(BaseModel):
     year: Year
     subject: Subject
     topic: str = Field(validation_alias=AliasChoices("question", "query"))
-    student_info: str = ""
+    student_info: str
 
 
 class TopicResponse(BaseModel):

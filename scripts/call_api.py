@@ -27,6 +27,7 @@ class AnswerRequest(TypedDict):
     year: int
     subject: str
     topic: str
+    student_info: str
 
 
 class AnswerResponse(TypedDict):
@@ -38,6 +39,7 @@ class CommandLineArguments:
     year: Year
     subject: Subject
     topic: str
+    student_info: str
 
 
 def build_parser() -> ArgumentParser:
@@ -47,17 +49,26 @@ def build_parser() -> ArgumentParser:
         required=True,
         type=lambda value: Year(int(value)),
         choices=tuple(Year),
+        help="Grade year for the student.",
     )
     parser.add_argument(
         "--subject",
         required=True,
         type=Subject,
         choices=tuple(Subject),
+        help="Subject to explain.",
     )
     parser.add_argument(
         "--topic",
         required=True,
         type=str,
+        help="Topic to generate a response for.",
+    )
+    parser.add_argument(
+        "--student-info",
+        required=True,
+        type=str,
+        help="Student context to personalize the response.",
     )
     return parser
 
@@ -69,6 +80,7 @@ def parse_args() -> CommandLineArguments:
         year=parsed_args.year,
         subject=parsed_args.subject,
         topic=parsed_args.topic,
+        student_info=parsed_args.student_info,
     )
 
 
@@ -77,6 +89,7 @@ def build_request_payload(arguments: CommandLineArguments) -> AnswerRequest:
         "year": arguments.year.value,
         "subject": arguments.subject.value,
         "topic": arguments.topic,
+        "student_info": arguments.student_info,
     }
 
 
