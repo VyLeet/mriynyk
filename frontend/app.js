@@ -182,10 +182,10 @@ const formatInlineMarkdown = (value) => {
   return text;
 };
 
-const renderMarkdown = (input) => {
+const buildMarkdownBlocks = (input) => {
   const raw = String(input ?? "");
   if (!raw.trim()) {
-    return "";
+    return [];
   }
 
   const lines = raw.replace(/\r\n?/g, "\n").split("\n");
@@ -291,7 +291,319 @@ const renderMarkdown = (input) => {
   flushParagraph();
   flushList();
 
-  return output.join("");
+  return output;
+};
+
+const renderMarkdown = (input) => buildMarkdownBlocks(input).join("");
+
+const stripHtml = (value) =>
+  String(value ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[^;]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const buildPagedBlocks = (blocks, minChars = 100) => {
+  const pages = [];
+  let current = [];
+  let currentLength = 0;
+
+  blocks.forEach((block) => {
+    const blockLength = stripHtml(block).length;
+    if (current.length === 0 && blockLength >= minChars) {
+      pages.push(block);
+      current = [];
+      currentLength = 0;
+      return;
+    }
+    current.push(block);
+    currentLength += blockLength;
+    if (currentLength >= minChars) {
+      pages.push(current.join('<div class="workbook-break"></div>'));
+      current = [];
+      currentLength = 0;
+    }
+  });
+
+  if (current.length) {
+    pages.push(current.join('<div class="workbook-break"></div>'));
+  }
+
+  return pages;
+};
+
+const createModePicker = () => {
+  const picker = document.createElement("div");
+  picker.className = "mode-picker";
+  picker.setAttribute("role", "group");
+  picker.setAttribute("aria-label", "Режим читання");
+
+  const modes = [
+    {
+      id: "full",
+      label: "Повний текст",
+      icon: `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6h12M6 10h12M6 14h8M6 18h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+      `,
+    },
+    {
+      id: "single",
+      label: "По абзацу",
+      icon: `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6h12M6 10h6M6 14h12M6 18h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          <rect x="12.5" y="9" width="5" height="4" rx="1.2" fill="currentColor" />
+        </svg>
+      `,
+    },
+    {
+      id: "tiktok",
+      label: "TikTok режим",
+      icon: `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="7" y="4" width="10" height="16" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none" />
+          <path d="M10 10.5l4 2-4 2z" fill="currentColor" />
+        </svg>
+      `,
+    },
+  ];
+
+  const buttons = new Map();
+
+  modes.forEach((mode) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mode-btn";
+    button.dataset.mode = mode.id;
+    button.setAttribute("aria-label", mode.label);
+    button.setAttribute("aria-pressed", "false");
+    button.innerHTML = mode.icon;
+    picker.appendChild(button);
+    buttons.set(mode.id, button);
+  });
+
+  const rsvpToggleLabel = document.createElement("label");
+  rsvpToggleLabel.className = "rsvp-toggle-label";
+  rsvpToggleLabel.textContent = "RSVP";
+  const rsvpToggle = document.createElement("input");
+  rsvpToggle.type = "checkbox";
+  rsvpToggle.id = "rsvp-toggle";
+  rsvpToggleLabel.appendChild(rsvpToggle);
+  picker.appendChild(rsvpToggleLabel);
+
+  return { picker, buttons, rsvpToggle };
+};
+
+const clampIndex = (index, total) =>
+  Math.max(0, Math.min(index, Math.max(0, total - 1)));
+
+const createSingleParagraphView = (pages) => {
+  const container = document.createElement("div");
+  container.className = "workbook-mode workbook-mode--single is-hidden";
+
+  const nav = document.createElement("div");
+  nav.className = "workbook-nav";
+  const prev = document.createElement("button");
+  prev.type = "button";
+  prev.className = "workbook-nav-btn";
+  prev.textContent = "<";
+  prev.setAttribute("aria-label", "Попередній абзац");
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "workbook-nav-btn";
+  next.textContent = ">";
+  next.setAttribute("aria-label", "Наступний абзац");
+  nav.append(prev, next);
+
+  const content = document.createElement("div");
+  content.className = "workbook-paragraph markdown-body";
+  container.append(nav, content);
+
+  let activeIndex = 0;
+  const update = () => {
+    if (!pages.length) {
+      content.innerHTML = "<p>Текст поки відсутній.</p>";
+      prev.disabled = true;
+      next.disabled = true;
+      return;
+    }
+    activeIndex = clampIndex(activeIndex, pages.length);
+    content.innerHTML = pages[activeIndex];
+    prev.disabled = activeIndex === 0;
+    next.disabled = activeIndex >= pages.length - 1;
+  };
+
+  prev.addEventListener("click", () => {
+    activeIndex = clampIndex(activeIndex - 1, pages.length);
+    update();
+  });
+  next.addEventListener("click", () => {
+    activeIndex = clampIndex(activeIndex + 1, pages.length);
+    update();
+  });
+
+  update();
+
+  return { element: container, update, setIndex: (index) => {
+    activeIndex = clampIndex(index, pages.length);
+    update();
+  } };
+};
+
+const createTikTokView = (pages, meta) => {
+  const container = document.createElement("div");
+  container.className = "workbook-mode workbook-mode--tiktok is-hidden";
+
+  const shell = document.createElement("div");
+  shell.className = "tiktok-shell";
+  shell.setAttribute("role", "region");
+  shell.setAttribute("aria-label", "TikTok режим читання");
+
+  const screen = document.createElement("div");
+  screen.className = "tiktok-screen";
+
+  const content = document.createElement("div");
+  content.className = "tiktok-content markdown-body";
+
+  const description = document.createElement("div");
+  description.className = "tiktok-description";
+  const descTitle = document.createElement("div");
+  descTitle.className = "tiktok-title";
+  descTitle.textContent = meta.title || "Персоналізований конспект";
+  const descMeta = document.createElement("div");
+  descMeta.className = "tiktok-meta";
+  descMeta.textContent = meta.subtitle || "";
+  description.append(descTitle, descMeta);
+
+  const actions = document.createElement("div");
+  actions.className = "tiktok-actions";
+  actions.innerHTML = `
+    <button class="tiktok-action" type="button" aria-label="Лайк">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 20.5l-7.2-7.1a4.5 4.5 0 0 1 6.4-6.4l.8.8.8-.8a4.5 4.5 0 0 1 6.4 6.4z" fill="currentColor" />
+      </svg>
+    </button>
+    <button class="tiktok-action" type="button" aria-label="Коментар">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 6h14v9H9l-4 3z" fill="currentColor" />
+      </svg>
+    </button>
+    <button class="tiktok-action" type="button" aria-label="Поділитися">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M14 5l5 5-5 5v-3H8v-4h6z" fill="currentColor" />
+      </svg>
+    </button>
+  `;
+
+  screen.append(content, description, actions);
+
+  const tabbar = document.createElement("div");
+  tabbar.className = "tiktok-tabbar";
+  tabbar.innerHTML = `
+    <button type="button" class="tiktok-tab is-active">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 11.5l8-6 8 6v7H4z" fill="currentColor" />
+      </svg>
+      <span>Головна</span>
+    </button>
+    <button type="button" class="tiktok-tab">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2" fill="none" />
+        <path d="M16.5 16.5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+      <span>Пошук</span>
+    </button>
+    <button type="button" class="tiktok-tab tiktok-upload">
+      <span>+</span>
+    </button>
+    <button type="button" class="tiktok-tab">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 6h12v8H9l-3 3z" fill="currentColor" />
+      </svg>
+      <span>Вхідні</span>
+    </button>
+    <button type="button" class="tiktok-tab">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="9" r="4" fill="currentColor" />
+        <path d="M5 20a7 7 0 0 1 14 0z" fill="currentColor" />
+      </svg>
+      <span>Я</span>
+    </button>
+  `;
+
+  shell.append(screen, tabbar);
+  container.appendChild(shell);
+
+  let activeIndex = 0;
+  let lastSwipe = 0;
+  const swipeCooldown = 450;
+
+  const update = () => {
+    if (!pages.length) {
+      content.innerHTML = "<p>Текст поки відсутній.</p>";
+      return;
+    }
+    activeIndex = clampIndex(activeIndex, pages.length);
+    content.innerHTML = pages[activeIndex];
+    shell.dataset.edgeTop = activeIndex === 0 ? "true" : "false";
+    shell.dataset.edgeBottom = activeIndex >= pages.length - 1 ? "true" : "false";
+  };
+
+  const step = (direction) => {
+    if (direction === 0 || !pages.length) {
+      return;
+    }
+    const nextIndex = clampIndex(activeIndex + direction, pages.length);
+    if (nextIndex === activeIndex) {
+      return;
+    }
+    activeIndex = nextIndex;
+    update();
+  };
+
+  const onWheel = (event) => {
+    const now = Date.now();
+    if (now - lastSwipe < swipeCooldown) {
+      return;
+    }
+    if (Math.abs(event.deltaY) < 18) {
+      return;
+    }
+    event.preventDefault();
+    lastSwipe = now;
+    step(event.deltaY > 0 ? 1 : -1);
+  };
+
+  let touchStartY = null;
+  const onTouchStart = (event) => {
+    touchStartY = event.touches[0]?.clientY ?? null;
+  };
+  const onTouchEnd = (event) => {
+    if (touchStartY === null) {
+      return;
+    }
+    const endY = event.changedTouches[0]?.clientY ?? touchStartY;
+    const delta = touchStartY - endY;
+    if (Math.abs(delta) < 40) {
+      touchStartY = null;
+      return;
+    }
+    step(delta > 0 ? 1 : -1);
+    touchStartY = null;
+  };
+
+  shell.addEventListener("wheel", onWheel, { passive: false });
+  shell.addEventListener("touchstart", onTouchStart, { passive: true });
+  shell.addEventListener("touchend", onTouchEnd);
+
+  update();
+
+  return { element: container, update, setIndex: (index) => {
+    activeIndex = clampIndex(index, pages.length);
+    update();
+  } };
 };
 
 const shuffleArray = (items) => {
@@ -870,11 +1182,178 @@ const updateStudentView = async () => {
       title.textContent = message.topic || "Тема без назви";
       const meta = document.createElement("div");
       meta.className = "message-meta";
-      meta.textContent = `${message.subject} • ${formatDate(message.createdAt)}`;
-      const body = document.createElement("div");
-      body.className = "message-body markdown-body";
-      body.innerHTML = renderMarkdown(message.output ?? "");
-      card.append(title, meta, body);
+      const metaText = [message.subject, formatDate(message.createdAt)].filter(Boolean).join(" • ");
+      meta.textContent = metaText;
+
+      const blocks = buildMarkdownBlocks(message.output ?? "");
+      const pages = buildPagedBlocks(blocks, 100);
+      const { picker, buttons, rsvpToggle } = createModePicker();
+
+      const workbook = document.createElement("div");
+      workbook.className = "workbook";
+
+      const fullView = document.createElement("div");
+      fullView.className = "workbook-mode workbook-mode--full markdown-body";
+      fullView.innerHTML = blocks.join("");
+
+      const singleView = createSingleParagraphView(pages);
+      const tiktokView = createTikTokView(pages, {
+        title: message.topic || "Персоналізований конспект",
+        subtitle: metaText,
+      });
+
+      const views = {
+        full: fullView,
+        single: singleView.element.querySelector(".workbook-paragraph"),
+        tiktok: tiktokView.element.querySelector(".tiktok-content"),
+      };
+
+      let rsvpState = {
+        intervalId: null,
+        wordPositions: [],
+        highlighter: null,
+      };
+
+      const createRsvpHighlighter = () => {
+        let highlighter = document.getElementById('rsvp-highlighter');
+        if (!highlighter) {
+          highlighter = document.createElement('div');
+          highlighter.id = 'rsvp-highlighter';
+          document.body.appendChild(highlighter);
+        }
+        return highlighter;
+      };
+
+      const calculateWordPositions = (element) => {
+        const positions = [];
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while (node = walker.nextNode()) {
+          const words = node.textContent.split(/(\s+)/);
+          let offset = 0;
+          words.forEach(word => {
+            if (word.trim() !== '') {
+              const range = document.createRange();
+              range.setStart(node, offset);
+              range.setEnd(node, offset + word.length);
+              const rect = range.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) {
+                positions.push(rect);
+              }
+            }
+            offset += word.length;
+          });
+        }
+        return positions;
+      };
+
+      const getCurrentMode = () => {
+        const activeButton = [...buttons].find(([, button]) => button.classList.contains("is-active"));
+        return activeButton ? activeButton[0] : "full";
+      };
+
+      const stopRsvp = () => {
+        if (rsvpState.intervalId) {
+          clearInterval(rsvpState.intervalId);
+          rsvpState.intervalId = null;
+        }
+        if (rsvpState.highlighter) {
+          rsvpState.highlighter.style.display = 'none';
+        }
+      };
+
+      const runRsvp = (mode) => {
+        stopRsvp(); 
+
+        const view = views[mode];
+        if (!view) {
+          return;
+        }
+
+        rsvpState.wordPositions = calculateWordPositions(view);
+        if (rsvpState.wordPositions.length === 0) {
+          return;
+        }
+
+        if (!rsvpState.highlighter) {
+          rsvpState.highlighter = createRsvpHighlighter();
+        }
+        
+        rsvpState.highlighter.style.display = 'block';
+        let currentIndex = 0;
+
+        rsvpState.intervalId = setInterval(() => {
+          if (currentIndex < rsvpState.wordPositions.length) {
+            const rect = rsvpState.wordPositions[currentIndex];
+            rsvpState.highlighter.style.top = `${rect.top + window.scrollY}px`;
+            rsvpState.highlighter.style.left = `${rect.left + window.scrollX}px`;
+            rsvpState.highlighter.style.width = `${rect.width}px`;
+            rsvpState.highlighter.style.height = `${rect.height}px`;
+            currentIndex++;
+          } else {
+            stopRsvp();
+            rsvpToggle.checked = false;
+          }
+        }, 200);
+      };
+
+      const setMode = (mode) => {
+        const wasRsvpActive = rsvpToggle.checked;
+        if (wasRsvpActive) {
+          stopRsvp();
+        }
+
+        ["full", "single", "tiktok"].forEach((key) => {
+          const button = buttons.get(key);
+          if (!button) {
+            return;
+          }
+          const isActive = key === mode;
+          button.classList.toggle("is-active", isActive);
+          button.setAttribute("aria-pressed", String(isActive));
+        });
+        fullView.classList.toggle("is-hidden", mode !== "full");
+        singleView.element.classList.toggle("is-hidden", mode !== "single");
+        tiktokView.element.classList.toggle("is-hidden", mode !== "tiktok");
+        if (mode === "single") {
+          singleView.update();
+        }
+        if (mode === "tiktok") {
+          tiktokView.update();
+        }
+        
+        if (wasRsvpActive) {
+          rsvpToggle.checked = true;
+          runRsvp(mode);
+        }
+      };
+
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          setMode(button.dataset.mode);
+        });
+      });
+
+      rsvpToggle.addEventListener("change", () => {
+        if (rsvpToggle.checked) {
+          runRsvp(getCurrentMode());
+        } else {
+          stopRsvp();
+        }
+      });
+
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        if (rsvpToggle.checked) {
+          stopRsvp();
+          rsvpToggle.checked = false;
+        }
+      });
+      
+      setMode("full");
+
+      workbook.append(picker, fullView, singleView.element, tiktokView.element);
+      card.append(title, meta, workbook);
       return card;
     });
   } catch (error) {
