@@ -838,7 +838,7 @@ p {
   border-radius: 3px;
 }
 
-#rsvp-highlighter {
+.rsvp-highlighter {
   position: absolute;
   background-color: rgba(173, 216, 230, 0.5); /* lightblue with some transparency */
   z-index: 9999;

@@ -1212,14 +1212,20 @@ const updateStudentView = async () => {
         intervalId: null,
         wordPositions: [],
         highlighter: null,
+        container: null,
       };
 
-      const createRsvpHighlighter = () => {
-        let highlighter = document.getElementById('rsvp-highlighter');
+      const createRsvpHighlighter = (container) => {
+        let highlighter = container.querySelector('.rsvp-highlighter');
         if (!highlighter) {
           highlighter = document.createElement('div');
-          highlighter.id = 'rsvp-highlighter';
-          document.body.appendChild(highlighter);
+          highlighter.className = 'rsvp-highlighter';
+          // Ensure container is a positioning context
+          const containerPosition = window.getComputedStyle(container).position;
+          if (containerPosition === 'static') {
+            container.style.position = 'relative';
+          }
+          container.appendChild(highlighter);
         }
         return highlighter;
       };
@@ -1270,23 +1276,27 @@ const updateStudentView = async () => {
           return;
         }
 
+        rsvpState.container = view;
         rsvpState.wordPositions = calculateWordPositions(view);
         if (rsvpState.wordPositions.length === 0) {
           return;
         }
 
-        if (!rsvpState.highlighter) {
-          rsvpState.highlighter = createRsvpHighlighter();
-        }
+        rsvpState.highlighter = createRsvpHighlighter(rsvpState.container);
         
         rsvpState.highlighter.style.display = 'block';
         let currentIndex = 0;
+        const containerRect = rsvpState.container.getBoundingClientRect();
 
         rsvpState.intervalId = setInterval(() => {
           if (currentIndex < rsvpState.wordPositions.length) {
             const rect = rsvpState.wordPositions[currentIndex];
-            rsvpState.highlighter.style.top = `${rect.top + window.scrollY}px`;
-            rsvpState.highlighter.style.left = `${rect.left + window.scrollX}px`;
+            // Position relative to the container
+            const top = rect.top - containerRect.top + rsvpState.container.scrollTop;
+            const left = rect.left - containerRect.left + rsvpState.container.scrollLeft;
+
+            rsvpState.highlighter.style.top = `${top}px`;
+            rsvpState.highlighter.style.left = `${left}px`;
             rsvpState.highlighter.style.width = `${rect.width}px`;
             rsvpState.highlighter.style.height = `${rect.height}px`;
             currentIndex++;
