@@ -10,6 +10,7 @@ let activeTeacherView = "overview";
 
 const STORAGE_MESSAGES = "ragMessages";
 const STORAGE_ACTIVITY = "ragActivity";
+const STORAGE_QUIZ = "ragQuizQuestions";
 
 const navLinks = Array.from(document.querySelectorAll(".nav-link"));
 const modeButtons = Array.from(document.querySelectorAll(".mode-btn"));
@@ -60,6 +61,9 @@ const ragGenerate = document.querySelector("#rag-generate");
 const ragSend = document.querySelector("#rag-send");
 const ragClear = document.querySelector("#rag-clear");
 let ragOutputValue = "";
+const quizCard = document.querySelector("#quiz-card");
+let quizQuestions = [];
+let quizAttemptIndex = 0;
 
 const activityList = document.querySelector("#activity-list");
 const activityClear = document.querySelector("#activity-clear");
@@ -144,6 +148,7 @@ const saveStorage = (key, value) => {
 
 const messagesByStudent = () => loadStorage(STORAGE_MESSAGES, {});
 const activityLog = () => loadStorage(STORAGE_ACTIVITY, []);
+const quizByStudent = () => loadStorage(STORAGE_QUIZ, {});
 
 const setListMessage = (container, message) => {
   container.innerHTML = "";
@@ -287,6 +292,130 @@ const renderMarkdown = (input) => {
   flushList();
 
   return output.join("");
+};
+
+const shuffleArray = (items) => {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
+};
+
+const selectQuizStartIndex = (total, attemptIndex) => {
+  if (attemptIndex === 0) {
+    return 0;
+  }
+  if (total <= 5) {
+    return 0;
+  }
+  if (total >= 10) {
+    return 5;
+  }
+  return Math.max(0, total - 5);
+};
+
+const renderQuizCard = (attemptIndex) => {
+  if (!quizCard) {
+    return;
+  }
+  const questions = Array.isArray(quizQuestions) ? quizQuestions : [];
+  quizCard.innerHTML = "";
+  quizCard.dataset.quizMode = "true";
+
+  const head = document.createElement("div");
+  head.className = "card-head";
+  const headInfo = document.createElement("div");
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = "Вправи";
+  const title = document.createElement("h3");
+  title.textContent = "Закріплення теми";
+  headInfo.append(eyebrow, title);
+  head.appendChild(headInfo);
+  quizCard.appendChild(head);
+
+  if (questions.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "Питання до останнього конспекту не збережені. Надішліть його ще раз.";
+    quizCard.appendChild(empty);
+    return;
+  }
+
+  const startIndex = selectQuizStartIndex(questions.length, attemptIndex);
+  const selected = questions.slice(startIndex, startIndex + 5);
+  const stack = document.createElement("div");
+  stack.className = "quiz-stack";
+
+  selected.forEach((question, index) => {
+    const block = document.createElement("div");
+    block.className = "quiz-question";
+    const questionTitle = document.createElement("div");
+    questionTitle.className = "quiz-question-title";
+    questionTitle.textContent = `${startIndex + index + 1}. ${question.text ?? ""}`;
+    block.appendChild(questionTitle);
+
+    const options = Array.isArray(question.options) ? question.options : [];
+    const optionsWrap = document.createElement("div");
+    optionsWrap.className = "quiz-options";
+    const shuffledOptions = shuffleArray(
+      options.map((text, optionIndex) => ({
+        text,
+        isCorrect: optionIndex === 0,
+      }))
+    );
+
+    shuffledOptions.forEach((option) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "quiz-option";
+      button.textContent = option.text ?? "";
+      button.dataset.correct = option.isCorrect ? "true" : "false";
+      button.addEventListener("click", () => {
+        if (block.dataset.answered === "true") {
+          return;
+        }
+        block.dataset.answered = "true";
+        const buttons = optionsWrap.querySelectorAll(".quiz-option");
+        buttons.forEach((btn) => {
+          const isCorrect = btn.dataset.correct === "true";
+          if (isCorrect) {
+            btn.classList.add("is-correct");
+          }
+          btn.disabled = true;
+        });
+        if (button.dataset.correct !== "true") {
+          button.classList.add("is-wrong");
+        }
+      });
+      optionsWrap.appendChild(button);
+    });
+
+    block.appendChild(optionsWrap);
+    stack.appendChild(block);
+  });
+
+  quizCard.appendChild(stack);
+
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "btn ghost";
+  retry.textContent = "Перепройти";
+  retry.addEventListener("click", () => {
+    quizAttemptIndex = quizAttemptIndex === 0 ? 1 : 0;
+    renderQuizCard(quizAttemptIndex);
+  });
+  actions.appendChild(retry);
+  quizCard.appendChild(actions);
+};
+
+const startQuiz = () => {
+  quizAttemptIndex = 0;
+  renderQuizCard(quizAttemptIndex);
 };
 
 const setMarkdownContent = (container, value) => {
@@ -701,6 +830,7 @@ const updateStudentView = async () => {
   if (!studentId) {
     studentMessageCount.textContent = "0";
     setListMessage(studentMessages, "Оберіть учня, щоб переглянути повідомлення.");
+    quizQuestions = [];
     return;
   }
 
@@ -726,7 +856,12 @@ const updateStudentView = async () => {
 
     const messageKey = String(studentId);
     const messages = messagesByStudent()[messageKey] ?? [];
+    const quizzes = quizByStudent();
     studentMessageCount.textContent = messages.length;
+    quizQuestions = quizzes[messageKey] ?? messages[0]?.quizQuestions ?? [];
+    if (quizCard?.dataset.quizMode === "true") {
+      renderQuizCard(quizAttemptIndex);
+    }
 
     renderList(studentMessages, messages, "Повідомлень поки немає.", (message) => {
       const card = document.createElement("div");
@@ -748,6 +883,7 @@ const updateStudentView = async () => {
     }
     studentMessageCount.textContent = "0";
     setListMessage(studentMessages, "Не вдалося завантажити дані.");
+    quizQuestions = [];
   }
 };
 
@@ -809,6 +945,7 @@ const sendRagOutput = () => {
     topic,
     output,
     subject: ragSubject.value,
+    quizQuestions: Array.isArray(quizQuestions) ? quizQuestions : [],
     createdAt: new Date().toISOString(),
   };
 
@@ -818,6 +955,9 @@ const sendRagOutput = () => {
   list.unshift(message);
   messages[messageKey] = list.slice(0, 10);
   saveStorage(STORAGE_MESSAGES, messages);
+  const quizzes = quizByStudent();
+  quizzes[messageKey] = message.quizQuestions;
+  saveStorage(STORAGE_QUIZ, quizzes);
 
   const studentLabel = students.find((student) => String(student.id) === String(studentId))?.label;
   addActivity("RAG-конспект надіслано", `${studentLabel ?? studentId}`);
@@ -861,6 +1001,7 @@ const requestRag = async () => {
     }
     const data = await response.json();
     setRagOutput(data.result ?? "");
+    quizQuestions = data.quiz_questions ?? [];
     ragStatus.textContent = "Відповідь готова до перегляду.";
     addActivity("RAG відповідь згенеровано", `Тема: ${topic}`);
   } catch (error) {
@@ -936,6 +1077,16 @@ yearSelect.addEventListener("change", async () => {
 ragGenerate.addEventListener("click", requestRag);
 ragSend.addEventListener("click", sendRagOutput);
 ragClear.addEventListener("click", clearRagForm);
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  const button = target.closest("#quiz-start");
+  if (button) {
+    startQuiz();
+  }
+});
 if (activityClear) {
   activityClear.addEventListener("click", () => {
     saveStorage(STORAGE_ACTIVITY, []);

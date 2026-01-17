@@ -19,7 +19,7 @@ from mriynyk.config import (
     resolve_api_key,
     resolve_database_url,
 )
-from mriynyk.models import DisciplineName, Page, Subject, TopicRequest, TopicResponse, Year
+from mriynyk.models import DisciplineName, Page, Subject, TopicRequest, TopicResponse, Workbook, Year
 
 Vector: TypeAlias = Sequence[float]
 
@@ -160,7 +160,7 @@ def generate_workbook(
     subject: Subject,
     closest_chapter_pages: List[Page],
     student_info: str,
-) -> Optional[str]:
+) -> Optional[Workbook]:
     client = OpenAI()
 
     chapter_text = "\n".join([page.text for page in closest_chapter_pages])
@@ -171,16 +171,17 @@ def generate_workbook(
         student_info=student_info,
     )
 
-    response = client.responses.create(
+    response = client.responses.parse(
         model="gpt-5.2",
         reasoning={"effort": "low"},
-        input=prompt
+        input=prompt,
+        text_format=Workbook
     )
 
-    workbook = response.output_text
+    workbook = response.output_parsed
     return workbook
 
-def answer_topic(topic: str, year: Year, subject: Subject, student_info: str) -> str:
+def answer_topic(topic: str, year: Year, subject: Subject, student_info: str) -> Workbook:
     direct_answer = answer_directly(topic=topic, year=year, subject=subject)
     if direct_answer is None:
         raise ValueError("Direct answer missing from the model response.")
@@ -210,10 +211,10 @@ def answer_topic(topic: str, year: Year, subject: Subject, student_info: str) ->
 
 
 def answer_request(request: TopicRequest) -> TopicResponse:
-    response_text = answer_topic(
+    workbook = answer_topic(
         request.topic,
         request.year,
         request.subject,
         request.student_info,
     )
-    return TopicResponse(result=response_text)
+    return TopicResponse(result=workbook.markdown_text, quiz_questions=workbook.quiz_questions)

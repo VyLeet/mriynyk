@@ -193,8 +193,8 @@
             <article class="card wide" style="--delay: 0.05s">
                 <div class="card-head">
                   <div>
-                    <div class="eyebrow">RAG-запит</div>
-                    <h3>Тема для конспекту</h3>
+                    <div class="eyebrow">Форма</div>
+                    <h3>Створити конспект і вправи</h3>
                   </div>
                   <div class="chip">/answer</div>
                 </div>
@@ -282,7 +282,7 @@
             <div class="message-list" id="student-messages"></div>
           </article>
 
-          <article class="card" style="--delay: 0.15s">
+          <article class="card" id="quiz-card" style="--delay: 0.15s">
             <div class="card-head">
               <div>
                 <div class="eyebrow">Завдання</div>
@@ -290,12 +290,12 @@
               </div>
             </div>
             <ul class="checklist">
-              <li>Переглянь матеріал з теми RAG</li>
-              <li>Склади короткий конспект (5-7 пунктів)</li>
-              <li>Постав одне уточнююче питання</li>
+              <li>Перевір свої знання</li>
+              <li>Дізнайся, що варто довчити</li>
+              <li>Перечитай і пройди знову</li>
             </ul>
             <div class="card-actions">
-              <button class="btn primary">Перейти до вправ</button>
+              <button class="btn primary" id="quiz-start">Перейти до вправ</button>
             </div>
           </article>
         </section>

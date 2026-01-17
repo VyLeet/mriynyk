@@ -25,6 +25,15 @@ class Page:
     exercies: List[str]
 
 
+class QuizQuestion(BaseModel):
+    text: str
+    options: List[str]
+
+
+class Workbook(BaseModel):
+    markdown_text: str
+    quiz_questions: List[QuizQuestion]
+
 
 class TopicRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -37,6 +46,7 @@ class TopicRequest(BaseModel):
 
 class TopicResponse(BaseModel):
     result: str
+    quiz_questions: List[QuizQuestion] = Field(default_factory=list)
 
 
 DisciplineName: TypeAlias = str
