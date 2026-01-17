@@ -399,7 +399,7 @@ const createModePicker = () => {
 const clampIndex = (index, total) =>
   Math.max(0, Math.min(index, Math.max(0, total - 1)));
 
-const createSingleParagraphView = (pages) => {
+const createSingleParagraphView = (initialPages) => {
   const container = document.createElement("div");
   container.className = "workbook-mode workbook-mode--single is-hidden";
 
@@ -421,7 +421,9 @@ const createSingleParagraphView = (pages) => {
   content.className = "workbook-paragraph markdown-body";
   container.append(nav, content);
 
+  let pages = initialPages;
   let activeIndex = 0;
+
   const update = () => {
     if (!pages.length) {
       content.innerHTML = "<p>Текст поки відсутній.</p>";
@@ -446,13 +448,21 @@ const createSingleParagraphView = (pages) => {
 
   update();
 
-  return { element: container, update, setIndex: (index) => {
-    activeIndex = clampIndex(index, pages.length);
-    update();
-  } };
+  return { 
+    element: container, 
+    setPages: (newPages) => {
+      pages = newPages;
+      activeIndex = 0;
+      update();
+    },
+    setIndex: (index) => {
+      activeIndex = clampIndex(index, pages.length);
+      update();
+    } 
+  };
 };
 
-const createTikTokView = (pages, meta) => {
+const createTikTokView = (initialPages, meta) => {
   const container = document.createElement("div");
   container.className = "workbook-mode workbook-mode--tiktok is-hidden";
 
@@ -467,110 +477,133 @@ const createTikTokView = (pages, meta) => {
   const content = document.createElement("div");
   content.className = "tiktok-content markdown-body";
 
+  // ... (icons and layout code from before, unchanged)
+  const icons = {
+    heart: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`,
+    comment: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8.5 8.5z"></path></svg>`,
+    share: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.4 4.2c2.4 2.7 2.4 6.8 0 9.6l-3.9 4.3.9 1 3.9-4.3c3.1-3.4 3.1-8.9 0-12.3l-1 .9zM19.9 1.7c4.2 4.6 4.2 12 0 16.6l-1 .9c3.7-4 3.7-10.7 0-14.7l1-.8zM4.1 11.5l3.9-4.3.9 1-3.9 4.3c-3.1 3.4-3.1 8.9 0 12.3l-1-.9c-4.2-4.6-4.2-12 0-16.6l1 .8z"></path></svg>`,
+    music: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"></circle><path d="M18 12a6 6 0 0 0-6-6v6h6z"></path></svg>`,
+    home: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
+    search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`,
+    plus: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="#000" stroke-width="2.5"><path d="M12 5v14M5 12h14" /></svg>`,
+    inbox: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+    profile: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+  };
+
   const description = document.createElement("div");
   description.className = "tiktok-description";
-  const descTitle = document.createElement("div");
-  descTitle.className = "tiktok-title";
-  descTitle.textContent = meta.title || "Персоналізований конспект";
-  const descMeta = document.createElement("div");
-  descMeta.className = "tiktok-meta";
-  descMeta.textContent = meta.subtitle || "";
-  description.append(descTitle, descMeta);
+  description.innerHTML = `
+    <div class="tiktok-username">@${meta.subtitle?.split('•')[0].trim() || 'вчитель'}</div>
+    <div class="tiktok-text">${meta.title || 'Персоналізований конспект'}</div>
+    <div class="tiktok-music">
+      <span class="tiktok-music-icon">${icons.music}</span>
+      <span>Оригінальний звук - ${meta.subtitle?.split('•')[0].trim() || 'вчитель'}</span>
+    </div>
+  `;
 
   const actions = document.createElement("div");
   actions.className = "tiktok-actions";
   actions.innerHTML = `
-    <button class="tiktok-action" type="button" aria-label="Лайк">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 20.5l-7.2-7.1a4.5 4.5 0 0 1 6.4-6.4l.8.8.8-.8a4.5 4.5 0 0 1 6.4 6.4z" fill="currentColor" />
-      </svg>
-    </button>
-    <button class="tiktok-action" type="button" aria-label="Коментар">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M5 6h14v9H9l-4 3z" fill="currentColor" />
-      </svg>
-    </button>
-    <button class="tiktok-action" type="button" aria-label="Поділитися">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M14 5l5 5-5 5v-3H8v-4h6z" fill="currentColor" />
-      </svg>
-    </button>
+    <div class="tiktok-action tiktok-profile">
+      <img src="assets/mriynyk_logo.png" alt="Profile" />
+      <div class="tiktok-profile-plus">+</div>
+    </div>
+    <div class="tiktok-action">
+      ${icons.heart}
+      <span class="tiktok-action-label">1.2M</span>
+    </div>
+    <div class="tiktok-action">
+      ${icons.comment}
+      <span class="tiktok-action-label">10.3K</span>
+    </div>
+    <div class="tiktok-action">
+      ${icons.share}
+      <span class="tiktok-action-label">5.1K</span>
+    </div>
+    <div class="tiktok-action tiktok-record">
+      ${icons.music}
+    </div>
   `;
 
   screen.append(content, description, actions);
 
+  const tabbarContainer = document.createElement("div");
+  tabbarContainer.className = "tiktok-tabbar-container";
+  
   const tabbar = document.createElement("div");
   tabbar.className = "tiktok-tabbar";
   tabbar.innerHTML = `
     <button type="button" class="tiktok-tab is-active">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 11.5l8-6 8 6v7H4z" fill="currentColor" />
-      </svg>
+      ${icons.home}
       <span>Головна</span>
     </button>
     <button type="button" class="tiktok-tab">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2" fill="none" />
-        <path d="M16.5 16.5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-      </svg>
+      ${icons.search}
       <span>Пошук</span>
     </button>
-    <button type="button" class="tiktok-tab tiktok-upload">
-      <span>+</span>
-    </button>
+    <div class="tiktok-upload-wrapper">
+      <div class="tiktok-upload-left"></div>
+      <button type="button" class="tiktok-tab tiktok-upload">${icons.plus}</button>
+      <div class="tiktok-upload-right"></div>
+    </div>
     <button type="button" class="tiktok-tab">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M6 6h12v8H9l-3 3z" fill="currentColor" />
-      </svg>
+      ${icons.inbox}
       <span>Вхідні</span>
     </button>
     <button type="button" class="tiktok-tab">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="9" r="4" fill="currentColor" />
-        <path d="M5 20a7 7 0 0 1 14 0z" fill="currentColor" />
-      </svg>
-      <span>Я</span>
+      ${icons.profile}
+      <span>Профіль</span>
     </button>
   `;
+  tabbarContainer.appendChild(tabbar);
 
-  shell.append(screen, tabbar);
+  shell.append(screen, tabbarContainer);
   container.appendChild(shell);
 
+  let pages = initialPages;
   let activeIndex = 0;
   let lastSwipe = 0;
   const swipeCooldown = 450;
 
-  const update = () => {
+  const update = (animate = false) => {
     if (!pages.length) {
       content.innerHTML = "<p>Текст поки відсутній.</p>";
       return;
     }
     activeIndex = clampIndex(activeIndex, pages.length);
+    
+    if (animate) {
+      content.classList.add('new-content');
+      content.addEventListener('animationend', () => {
+        content.classList.remove('new-content');
+      }, { once: true });
+    }
+    
     content.innerHTML = pages[activeIndex];
     shell.dataset.edgeTop = activeIndex === 0 ? "true" : "false";
     shell.dataset.edgeBottom = activeIndex >= pages.length - 1 ? "true" : "false";
   };
 
   const step = (direction) => {
-    if (direction === 0 || !pages.length) {
-      return;
-    }
+    if (direction === 0 || !pages.length) return;
+    
     const nextIndex = clampIndex(activeIndex + direction, pages.length);
-    if (nextIndex === activeIndex) {
-      return;
+    if (nextIndex === activeIndex) return;
+
+    if (direction > 0) {
+      content.classList.add('swiping-up');
+      content.addEventListener('transitionend', () => {
+        activeIndex = nextIndex;
+        update(true);
+        content.classList.remove('swiping-up');
+      }, { once: true });
     }
-    activeIndex = nextIndex;
-    update();
   };
 
   const onWheel = (event) => {
     const now = Date.now();
-    if (now - lastSwipe < swipeCooldown) {
-      return;
-    }
-    if (Math.abs(event.deltaY) < 18) {
-      return;
-    }
+    if (now - lastSwipe < swipeCooldown) return;
+    if (Math.abs(event.deltaY) < 18) return;
     event.preventDefault();
     lastSwipe = now;
     step(event.deltaY > 0 ? 1 : -1);
@@ -581,9 +614,7 @@ const createTikTokView = (pages, meta) => {
     touchStartY = event.touches[0]?.clientY ?? null;
   };
   const onTouchEnd = (event) => {
-    if (touchStartY === null) {
-      return;
-    }
+    if (touchStartY === null) return;
     const endY = event.changedTouches[0]?.clientY ?? touchStartY;
     const delta = touchStartY - endY;
     if (Math.abs(delta) < 40) {
@@ -600,10 +631,15 @@ const createTikTokView = (pages, meta) => {
 
   update();
 
-  return { element: container, update, setIndex: (index) => {
-    activeIndex = clampIndex(index, pages.length);
-    update();
-  } };
+  return { 
+    element: container, 
+    step,
+    setPages: (newPages) => {
+      pages = newPages;
+      activeIndex = 0;
+      update();
+    }
+  };
 };
 
 const shuffleArray = (items) => {
@@ -1185,8 +1221,6 @@ const updateStudentView = async () => {
       const metaText = [message.subject, formatDate(message.createdAt)].filter(Boolean).join(" • ");
       meta.textContent = metaText;
 
-      const blocks = buildMarkdownBlocks(message.output ?? "");
-      const pages = buildPagedBlocks(blocks, 100);
       const { picker, buttons, rsvpToggle } = createModePicker();
 
       const workbook = document.createElement("div");
@@ -1194,14 +1228,10 @@ const updateStudentView = async () => {
 
       const fullView = document.createElement("div");
       fullView.className = "workbook-mode workbook-mode--full markdown-body";
-      fullView.innerHTML = blocks.join("");
 
-      const singleView = createSingleParagraphView(pages);
-      const tiktokView = createTikTokView(pages, {
-        title: message.topic || "Персоналізований конспект",
-        subtitle: metaText,
-      });
-
+      const singleView = createSingleParagraphView([]);
+      const tiktokView = createTikTokView([], meta);
+      
       const views = {
         full: fullView,
         single: singleView.element.querySelector(".workbook-paragraph"),
@@ -1220,7 +1250,6 @@ const updateStudentView = async () => {
         if (!highlighter) {
           highlighter = document.createElement('div');
           highlighter.className = 'rsvp-highlighter';
-          // Ensure container is a positioning context
           const containerPosition = window.getComputedStyle(container).position;
           if (containerPosition === 'static') {
             container.style.position = 'relative';
@@ -1267,23 +1296,20 @@ const updateStudentView = async () => {
           rsvpState.highlighter.style.display = 'none';
         }
       };
+      
+      const stepTikTok = tiktokView.step;
 
       const runRsvp = (mode) => {
         stopRsvp(); 
 
         const view = views[mode];
-        if (!view) {
-          return;
-        }
+        if (!view) return;
 
         rsvpState.container = view;
         rsvpState.wordPositions = calculateWordPositions(view);
-        if (rsvpState.wordPositions.length === 0) {
-          return;
-        }
+        if (rsvpState.wordPositions.length === 0) return;
 
         rsvpState.highlighter = createRsvpHighlighter(rsvpState.container);
-        
         rsvpState.highlighter.style.display = 'block';
         let currentIndex = 0;
         const containerRect = rsvpState.container.getBoundingClientRect();
@@ -1291,7 +1317,6 @@ const updateStudentView = async () => {
         rsvpState.intervalId = setInterval(() => {
           if (currentIndex < rsvpState.wordPositions.length) {
             const rect = rsvpState.wordPositions[currentIndex];
-            // Position relative to the container
             const top = rect.top - containerRect.top + rsvpState.container.scrollTop;
             const left = rect.left - containerRect.left + rsvpState.container.scrollLeft;
 
@@ -1302,10 +1327,19 @@ const updateStudentView = async () => {
             currentIndex++;
           } else {
             stopRsvp();
-            rsvpToggle.checked = false;
+            if (mode === 'tiktok') {
+              tiktokView.step(1, { restartRsvp: true });
+            }
           }
         }, 200);
       };
+
+      const blocks = buildMarkdownBlocks(message.output ?? "");
+      const pages = buildPagedBlocks(blocks, 100);
+      fullView.innerHTML = blocks.join("");
+      singleView.setPages(pages);
+      tiktokView.setPages(pages);
+
 
       const setMode = (mode) => {
         const wasRsvpActive = rsvpToggle.checked;
@@ -1315,22 +1349,15 @@ const updateStudentView = async () => {
 
         ["full", "single", "tiktok"].forEach((key) => {
           const button = buttons.get(key);
-          if (!button) {
-            return;
-          }
+          if (!button) return;
           const isActive = key === mode;
           button.classList.toggle("is-active", isActive);
           button.setAttribute("aria-pressed", String(isActive));
         });
+
         fullView.classList.toggle("is-hidden", mode !== "full");
         singleView.element.classList.toggle("is-hidden", mode !== "single");
         tiktokView.element.classList.toggle("is-hidden", mode !== "tiktok");
-        if (mode === "single") {
-          singleView.update();
-        }
-        if (mode === "tiktok") {
-          tiktokView.update();
-        }
         
         if (wasRsvpActive) {
           rsvpToggle.checked = true;
@@ -1339,9 +1366,7 @@ const updateStudentView = async () => {
       };
 
       buttons.forEach((button) => {
-        button.addEventListener("click", () => {
-          setMode(button.dataset.mode);
-        });
+        button.addEventListener("click", () => setMode(button.dataset.mode));
       });
 
       rsvpToggle.addEventListener("change", () => {
@@ -1352,7 +1377,6 @@ const updateStudentView = async () => {
         }
       });
 
-      // Handle window resize
       window.addEventListener('resize', () => {
         if (rsvpToggle.checked) {
           stopRsvp();
