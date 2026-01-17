@@ -1,5 +1,6 @@
 from enum import Enum, StrEnum
-from typing import TypeAlias
+from typing import List, TypeAlias
+from dataclasses import dataclass
 
 from pydantic import BaseModel
 
@@ -16,6 +17,13 @@ class Subject(StrEnum):
     ukrainian_language = "Українська мова"
     ukrainian_history = "Історія України"
     algebra = "Алгебра"
+
+
+@dataclass
+class Page:
+    text: str
+    exercies: List[str]
+
 
 
 class QueryRequest(BaseModel):

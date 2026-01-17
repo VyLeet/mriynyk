@@ -20,7 +20,7 @@ from mriynyk.config import (
     resolve_database_url,
 )
 from mriynyk.models import Subject, Year
-from mriynyk.service import embed_query, fetch_closest_page_text
+from mriynyk.service import embed_query, fetch_closest_chapter_pages
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -120,18 +120,14 @@ def solve(
     grade_value = year.value if isinstance(year, Year) else int(year)
     discipline_name = subject.value if isinstance(subject, Subject) else str(subject)
     logger.info("Fetching relevant info from database")
-    relevant_info = fetch_closest_page_text(
+    closest_chapter_pages = fetch_closest_chapter_pages(
         database_url=database_url,
         vector=vector,
-        schema_name=DEFAULT_SCHEMA_NAME,
-        table_name=DEFAULT_TABLE_NAME,
-        vector_column=DEFAULT_VECTOR_COLUMN,
-        page_text_column=DEFAULT_PAGE_TEXT_COLUMN,
-        grade_column=DEFAULT_GRADE_COLUMN,
-        discipline_column=DEFAULT_DISCIPLINE_COLUMN,
         grade_value=grade_value,
         discipline_name=discipline_name,
     )
+
+    relevant_info = "/n".join([page.text for page in closest_chapter_pages])
 
     solve_question_prompt = _solve_question_prompt(question=question, choices=choices, relevant_info=relevant_info)
 

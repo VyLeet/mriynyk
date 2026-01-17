@@ -1,10 +1,11 @@
-from typing import Optional, Sequence, TypeAlias
+from typing import List, Optional, Sequence, TypeAlias
 
 import psycopg
-from openai import OpenAI
-from pgvector import Vector as PgVector
-from pgvector.psycopg import register_vector
 from psycopg import sql
+from openai import OpenAI
+from pgvector.psycopg import register_vector
+from pgvector import Vector as PgVector
+from jinja2 import Environment, FileSystemLoader
 
 from mriynyk.config import (
     DEFAULT_DISCIPLINE_COLUMN,
@@ -18,7 +19,7 @@ from mriynyk.config import (
     resolve_api_key,
     resolve_database_url,
 )
-from mriynyk.models import DisciplineName, QueryRequest, QueryResponse, Subject, Year
+from mriynyk.models import DisciplineName, QueryRequest, QueryResponse, Subject, Year, Page
 
 Vector: TypeAlias = Sequence[float]
 
@@ -36,40 +37,81 @@ def embed_query(query: str) -> list[float]:
     return list(response.data[0].embedding)
 
 
-def fetch_closest_page_text(
+def _extract_exercises(page_metadata: object) -> List[str]:
+    if not isinstance(page_metadata, dict):
+        return []
+    exercises = page_metadata.get("exercises")
+    if not isinstance(exercises, list):
+        return []
+    exercise_texts: List[str] = []
+    for entry in exercises:
+        if isinstance(entry, dict):
+            text = entry.get("text")
+            if text:
+                exercise_texts.append(str(text))
+        elif entry:
+            exercise_texts.append(str(entry))
+    return exercise_texts
+
+
+def fetch_closest_chapter_pages(
     database_url: str,
     vector: Vector,
-    schema_name: str,
-    table_name: str,
-    vector_column: str,
-    page_text_column: str,
-    grade_column: str,
-    discipline_column: str,
     grade_value: int,
     discipline_name: DisciplineName,
-) -> str:
+) -> List[Page]:
     query_vector = PgVector(vector)
-    query_sql = sql.SQL(
+    closest_topic_sql = sql.SQL(
         "SELECT {} FROM {}.{} WHERE {} = %s AND {} = %s ORDER BY {} <-> %s LIMIT 1"
     ).format(
-        sql.Identifier(page_text_column),
-        sql.Identifier(schema_name),
-        sql.Identifier(table_name),
-        sql.Identifier(grade_column),
-        sql.Identifier(discipline_column),
-        sql.Identifier(vector_column),
+        sql.Identifier("topic_title"),
+        sql.Identifier(DEFAULT_SCHEMA_NAME),
+        sql.Identifier(DEFAULT_TABLE_NAME),
+        sql.Identifier(DEFAULT_GRADE_COLUMN),
+        sql.Identifier(DEFAULT_DISCIPLINE_COLUMN),
+        sql.Identifier(DEFAULT_VECTOR_COLUMN),
+    )
+    pages_sql = sql.SQL(
+        "SELECT {}, {} FROM {}.{} WHERE {} = %s AND {} = %s AND {} = %s "
+        "ORDER BY (substring({}::text from '[\"'']book_page_number[\"'']\\s*:\\s*([0-9]+)'))::int "
+        "ASC NULLS LAST"
+    ).format(
+        sql.Identifier(DEFAULT_PAGE_TEXT_COLUMN),
+        sql.Identifier("page_metadata"),
+        sql.Identifier(DEFAULT_SCHEMA_NAME),
+        sql.Identifier(DEFAULT_TABLE_NAME),
+        sql.Identifier(DEFAULT_GRADE_COLUMN),
+        sql.Identifier(DEFAULT_DISCIPLINE_COLUMN),
+        sql.Identifier("topic_title"),
+        sql.Identifier("page_metadata"),
     )
     with psycopg.connect(database_url) as connection:
         register_vector(connection)
         with connection.cursor() as cursor:
             cursor.execute(
-                query_sql,
+                closest_topic_sql,
                 (grade_value, discipline_name, query_vector),
             )
             row = cursor.fetchone()
-    if row is None:
-        raise ValueError("No rows found in the database.")
-    return str(row[0])
+            if row is None:
+                raise ValueError("No rows found in the database.")
+            topic_title = row[0]
+            cursor.execute(
+                pages_sql,
+                (grade_value, discipline_name, topic_title),
+            )
+            page_rows = cursor.fetchall()
+    if not page_rows:
+        raise ValueError("No rows found for the closest topic_title.")
+    pages: List[Page] = []
+    for page_text, page_metadata in page_rows:
+        pages.append(
+            Page(
+                text=str(page_text),
+                exercies=_extract_exercises(page_metadata),
+            )
+        )
+    return pages
 
 
 def answer_directly(query: str, year: Year, subject: Subject) -> Optional[str]:
@@ -94,6 +136,30 @@ def answer_directly(query: str, year: Year, subject: Subject) -> Optional[str]:
     )
     return response.choices[0].message.content
 
+def generate_workbook_prompt(query: str, subject: Subject, chapter_text: str, student_info: str) -> str:
+    env = Environment(loader=FileSystemLoader("prompts"))
+    template = env.get_template("generate_workbook.j2")
+    prompt = template.render({"query": query, "subject": subject.value, "chapter_text": chapter_text, "student_info": student_info})
+    return prompt
+
+# TODO: – Compare quality of higher/lower reasoning efforts
+def generate_workbook(query: str, subject: Subject, closest_chapter_pages: List[Page]) -> Optional[str]:
+    client=OpenAI()
+
+    chapter_text = "/n".join([page.text for page in closest_chapter_pages])
+    return chapter_text
+    # FIXME: – Add student personal info
+
+    prompt = generate_workbook_prompt(query=query, subject=subject, chapter_text=chapter_text, student_info = "")
+
+    response = client.responses.create(
+        model="gpt-5.2",
+        reasoning={"effort": "low"},
+        input=prompt
+    )
+
+    workbook = response.output_text
+    return workbook
 
 def answer_query(query: str, year: Year, subject: Subject) -> str:
     direct_answer = answer_directly(query=query, year=year, subject=subject)
@@ -104,18 +170,19 @@ def answer_query(query: str, year: Year, subject: Subject) -> str:
     database_url = resolve_database_url(None)
     discipline_name: DisciplineName = subject.value
 
-    return fetch_closest_page_text(
+    closest_chapter_pages = fetch_closest_chapter_pages(
         database_url=database_url,
         vector=vector,
-        schema_name=DEFAULT_SCHEMA_NAME,
-        table_name=DEFAULT_TABLE_NAME,
-        vector_column=DEFAULT_VECTOR_COLUMN,
-        page_text_column=DEFAULT_PAGE_TEXT_COLUMN,
-        grade_column=DEFAULT_GRADE_COLUMN,
-        discipline_column=DEFAULT_DISCIPLINE_COLUMN,
         grade_value=year.value,
         discipline_name=discipline_name,
     )
+
+    workbook = generate_workbook(query=query, subject=subject, closest_chapter_pages=closest_chapter_pages)
+
+    if workbook is None:
+        raise ValueError("Workbook missing from the model response.")
+
+    return workbook
 
 
 def answer_request(request: QueryRequest) -> QueryResponse:
