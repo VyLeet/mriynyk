@@ -15,11 +15,11 @@ from mriynyk.config import (
     DEFAULT_TABLE_NAME,
     DEFAULT_VECTOR_COLUMN,
     EMBEDDING_MODEL,
-    OPENAI_BASE_URL,
+    LAPA_PROVIDER_BASE_URL,
     resolve_api_key,
     resolve_database_url,
 )
-from mriynyk.models import DisciplineName, QueryRequest, QueryResponse, Subject, Year, Page
+from mriynyk.models import DisciplineName, Page, Subject, TopicRequest, TopicResponse, Year
 
 Vector: TypeAlias = Sequence[float]
 
@@ -27,7 +27,7 @@ Vector: TypeAlias = Sequence[float]
 def embed_query(query: str) -> list[float]:
     client = OpenAI(
         api_key=resolve_api_key(),
-        base_url=OPENAI_BASE_URL,
+        base_url=LAPA_PROVIDER_BASE_URL,
     )
     response = client.embeddings.create(
         input=query,
@@ -114,10 +114,10 @@ def fetch_closest_chapter_pages(
     return pages
 
 
-def answer_directly(query: str, year: Year, subject: Subject) -> Optional[str]:
+def answer_directly(topic: str, year: Year, subject: Subject) -> Optional[str]:
     client = OpenAI(
         api_key=resolve_api_key(),
-        base_url=OPENAI_BASE_URL,
+        base_url=LAPA_PROVIDER_BASE_URL,
     )
 
     response = client.chat.completions.create(
@@ -127,7 +127,7 @@ def answer_directly(query: str, year: Year, subject: Subject) -> Optional[str]:
                 "role": "user",
                 "content": (
                     "Поясни цю тему з предмету "
-                    f"{subject.value} учню {year.value}-го класу: {query}"
+                    f"{subject.value} учню {year.value}-го класу: {topic}"
                 ),
             }
         ],
@@ -136,21 +136,40 @@ def answer_directly(query: str, year: Year, subject: Subject) -> Optional[str]:
     )
     return response.choices[0].message.content
 
-def generate_workbook_prompt(query: str, subject: Subject, chapter_text: str, student_info: str) -> str:
+def generate_workbook_prompt(
+    topic: str,
+    subject: Subject,
+    chapter_text: str,
+    student_info: str,
+) -> str:
     env = Environment(loader=FileSystemLoader("prompts"))
     template = env.get_template("generate_workbook.j2")
-    prompt = template.render({"query": query, "subject": subject.value, "chapter_text": chapter_text, "student_info": student_info})
+    prompt = template.render(
+        {
+            "topic": topic,
+            "subject": subject.value,
+            "chapter_text": chapter_text,
+            "student_info": student_info,
+        }
+    )
     return prompt
 
 # TODO: – Compare quality of higher/lower reasoning efforts
-def generate_workbook(query: str, subject: Subject, closest_chapter_pages: List[Page]) -> Optional[str]:
-    client=OpenAI()
+def generate_workbook(
+    topic: str,
+    subject: Subject,
+    closest_chapter_pages: List[Page],
+    student_info: str,
+) -> Optional[str]:
+    client = OpenAI()
 
-    chapter_text = "/n".join([page.text for page in closest_chapter_pages])
-    return chapter_text
-    # FIXME: – Add student personal info
-
-    prompt = generate_workbook_prompt(query=query, subject=subject, chapter_text=chapter_text, student_info = "")
+    chapter_text = "\n".join([page.text for page in closest_chapter_pages])
+    prompt = generate_workbook_prompt(
+        topic=topic,
+        subject=subject,
+        chapter_text=chapter_text,
+        student_info=student_info,
+    )
 
     response = client.responses.create(
         model="gpt-5.2",
@@ -161,8 +180,8 @@ def generate_workbook(query: str, subject: Subject, closest_chapter_pages: List[
     workbook = response.output_text
     return workbook
 
-def answer_query(query: str, year: Year, subject: Subject) -> str:
-    direct_answer = answer_directly(query=query, year=year, subject=subject)
+def answer_topic(topic: str, year: Year, subject: Subject, student_info: str) -> str:
+    direct_answer = answer_directly(topic=topic, year=year, subject=subject)
     if direct_answer is None:
         raise ValueError("Direct answer missing from the model response.")
 
@@ -177,7 +196,12 @@ def answer_query(query: str, year: Year, subject: Subject) -> str:
         discipline_name=discipline_name,
     )
 
-    workbook = generate_workbook(query=query, subject=subject, closest_chapter_pages=closest_chapter_pages)
+    workbook = generate_workbook(
+        topic=topic,
+        subject=subject,
+        closest_chapter_pages=closest_chapter_pages,
+        student_info=student_info,
+    )
 
     if workbook is None:
         raise ValueError("Workbook missing from the model response.")
@@ -185,6 +209,11 @@ def answer_query(query: str, year: Year, subject: Subject) -> str:
     return workbook
 
 
-def answer_request(request: QueryRequest) -> QueryResponse:
-    response_text = answer_query(request.query, request.year, request.subject)
-    return QueryResponse(result=response_text)
+def answer_request(request: TopicRequest) -> TopicResponse:
+    response_text = answer_topic(
+        request.topic,
+        request.year,
+        request.subject,
+        request.student_info,
+    )
+    return TopicResponse(result=response_text)

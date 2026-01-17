@@ -27,7 +27,6 @@ const studentsView = document.querySelector("#students-view");
 const notesView = document.querySelector("#notes-view");
 
 const yearSelect = document.querySelector("#year-select");
-const subjectFilter = document.querySelector("#teacher-subject-filter");
 const teacherStudentSelect = document.querySelector("#teacher-student-select");
 const studentSelfSelect = document.querySelector("#student-self-select");
 
@@ -54,6 +53,7 @@ const studentStatus = document.querySelector("#student-status");
 
 const ragSubject = document.querySelector("#rag-subject");
 const ragTopic = document.querySelector("#rag-topic");
+const ragStudentInfo = document.querySelector("#rag-student-info");
 const ragOutput = document.querySelector("#rag-output");
 const ragStatus = document.querySelector("#rag-status");
 const ragGenerate = document.querySelector("#rag-generate");
@@ -74,7 +74,7 @@ const HERO_CONTENT_BY_VIEW = {
   students: {
     eyebrow: "Учні",
     title: "Профілі та статистика учнів",
-    subtitle: "Переглядайте пропуски, оцінки й динаміку за обраним учнем і предметом.",
+    subtitle: "Переглядайте пропуски, оцінки й динаміку за обраним учнем.",
     panel: "students",
   },
   notes: {
@@ -453,9 +453,8 @@ const updateOverviewView = async () => {
 
 const updateTeacherView = async () => {
   const studentId = teacherStudentSelect.value;
-  const subject = subjectFilter.value;
   const requestToken = (teacherRequestToken += 1);
-  const contextKey = `${studentId}|${subject}|${yearSelect.value}`;
+  const contextKey = `${studentId}|${yearSelect.value}`;
   if (contextKey !== teacherScoreContextKey) {
     teacherScoreContextKey = contextKey;
     teacherScoreDateIndex = 0;
@@ -484,7 +483,7 @@ const updateTeacherView = async () => {
   }
 
   try {
-    const data = await fetchStudentData(studentId, subject);
+    const data = await fetchStudentData(studentId, null);
     if (requestToken !== teacherRequestToken) {
       return;
     }
@@ -521,13 +520,13 @@ const updateTeacherView = async () => {
     renderList(
       teacherAbsencesList,
       recentAbsences,
-      "Немає пропусків за вибраним предметом.",
+      "Немає пропусків.",
       buildAbsenceItem
     );
     renderList(
       teacherScoresList,
       scoresForDay,
-      "Немає оцінок за вибраним предметом.",
+      "Немає оцінок.",
       buildScoreItem
     );
   } catch (error) {
@@ -679,12 +678,14 @@ const sendRagOutput = () => {
 
 const clearRagForm = () => {
   ragTopic.value = "";
+  ragStudentInfo.value = "";
   ragOutput.value = "";
   ragStatus.textContent = "Готові сформувати запит.";
 };
 
 const requestRag = async () => {
   const topic = ragTopic.value.trim();
+  const studentInfo = ragStudentInfo.value.trim();
   if (!topic) {
     ragStatus.textContent = "Вкажіть тему перед запуском RAG.";
     return;
@@ -696,7 +697,8 @@ const requestRag = async () => {
   const payload = {
     year: Number(yearSelect.value),
     subject: ragSubject.value,
-    query: topic,
+    topic,
+    student_info: studentInfo,
   };
 
   try {
@@ -773,7 +775,6 @@ modeButtons.forEach((button) => {
 });
 
 teacherStudentSelect.addEventListener("change", updateTeacherView);
-subjectFilter.addEventListener("change", updateTeacherView);
 studentSelfSelect.addEventListener("change", updateStudentView);
 yearSelect.addEventListener("change", async () => {
   dataCache.clear();

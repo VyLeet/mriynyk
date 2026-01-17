@@ -6,8 +6,8 @@ from fastapi.staticfiles import StaticFiles
 from mriynyk.config import load_environment
 from mriynyk.models import (
     OverviewResponse,
-    QueryRequest,
-    QueryResponse,
+    TopicRequest,
+    TopicResponse,
     StudentDataResponse,
     StudentListItem,
 )
@@ -23,8 +23,8 @@ def handle_startup() -> None:
     load_environment()
 
 
-@app.post("/answer", response_model=QueryResponse)
-def answer(request: QueryRequest) -> QueryResponse:
+@app.post("/answer", response_model=TopicResponse)
+def answer(request: TopicRequest) -> TopicResponse:
     return answer_request(request)
 
 

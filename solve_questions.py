@@ -15,7 +15,7 @@ from mriynyk.config import (
     DEFAULT_SCHEMA_NAME,
     DEFAULT_TABLE_NAME,
     DEFAULT_VECTOR_COLUMN,
-    OPENAI_BASE_URL,
+    LAPA_PROVIDER_BASE_URL,
     resolve_api_key,
     resolve_database_url,
 )
@@ -96,7 +96,7 @@ def solve(
     else:
         client = OpenAI(
             api_key=resolve_api_key(),
-            base_url=OPENAI_BASE_URL,
+            base_url=LAPA_PROVIDER_BASE_URL,
         )
         model_name = DEFAULT_LAPA_MODEL
 

@@ -43,7 +43,7 @@
       </header>
 
       <main>
-        <div id="teacher-mode">
+        <div id="teacher-mode" data-view="overview">
           <section class="hero">
             <div class="hero-stack">
               <div class="eyebrow" id="hero-eyebrow">Огляд</div>
@@ -63,6 +63,14 @@
                 <label class="field hero-field student-filter">
                   <span>Учень</span>
                   <select id="teacher-student-select" aria-label="Оберіть учня"></select>
+                </label>
+                <label class="field hero-field subject-filter">
+                  <span>Предмет</span>
+                  <select id="rag-subject" aria-label="Оберіть предмет">
+                    <option value="Алгебра">Алгебра</option>
+                    <option value="Українська мова">Українська мова</option>
+                    <option value="Історія України">Історія України</option>
+                  </select>
                 </label>
               </div>
             </div>
@@ -97,17 +105,6 @@
                       <h3>Профіль та статистика</h3>
                     </div>
                     <div class="chip">Останні 30 днів</div>
-                  </div>
-                  <div class="control-row">
-                    <label class="field">
-                      <span>Предмет</span>
-                      <select id="teacher-subject-filter" aria-label="Фільтр предмету">
-                        <option value="all">Усі</option>
-                        <option value="Алгебра">Algebra</option>
-                        <option value="Українська мова">Ukrainian language</option>
-                        <option value="Історія України">Ukrainian history</option>
-                      </select>
-                    </label>
                   </div>
                   <div class="stat-grid">
                     <div class="stat">
@@ -203,14 +200,6 @@
               </div>
               <div class="rag-form">
                 <label class="field">
-                  <span>Предмет</span>
-                  <select id="rag-subject" aria-label="Оберіть предмет">
-                    <option value="Алгебра">Algebra</option>
-                    <option value="Українська мова">Ukrainian language</option>
-                    <option value="Історія України">Ukrainian history</option>
-                  </select>
-                </label>
-                <label class="field">
                   <span>Тема</span>
                   <textarea
                     id="rag-topic"
@@ -219,7 +208,15 @@
                   ></textarea>
                 </label>
                 <label class="field">
-                  <span>Вихід RAG</span>
+                  <span>Інформація про учня</span>
+                  <textarea
+                    id="rag-student-info"
+                    rows="3"
+                    placeholder="Напр., потребує більше прикладів, любить короткі визначення"
+                  ></textarea>
+                </label>
+                <label class="field">
+                  <span>Персоналізований конспект</span>
                   <textarea id="rag-output" rows="5" readonly></textarea>
                 </label>
                 <div class="status" id="rag-status">Готові сформувати запит.</div>

@@ -263,7 +263,11 @@ p {
   max-width: 220px;
 }
 
-#teacher-mode:not([data-view="students"]) .hero-controls .student-filter {
+#teacher-mode[data-view="overview"] .hero-controls .student-filter {
+  display: none;
+}
+
+#teacher-mode[data-view="students"] .hero-controls .subject-filter {
   display: none;
 }
 
@@ -488,6 +492,10 @@ p {
 }
 
 .student-filter {
+  min-width: 220px;
+}
+
+.subject-filter {
   min-width: 220px;
 }
 

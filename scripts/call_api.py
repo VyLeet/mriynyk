@@ -19,13 +19,14 @@ from mriynyk.models import Subject, Year
 
 API_URL_ENV_VAR: Final[str] = "API_URL"
 DEFAULT_API_URL: Final[str] = "http://localhost:8000/answer"
-REQUEST_TIMEOUT_SECONDS: Final[float] = 30.0
+REQUEST_TIMEOUT_ENV_VAR: Final[str] = "API_TIMEOUT_SECONDS"
+DEFAULT_REQUEST_TIMEOUT_SECONDS: Final[float] = 120.0
 
 
 class AnswerRequest(TypedDict):
     year: int
     subject: str
-    query: str
+    topic: str
 
 
 class AnswerResponse(TypedDict):
@@ -36,7 +37,7 @@ class AnswerResponse(TypedDict):
 class CommandLineArguments:
     year: Year
     subject: Subject
-    query: str
+    topic: str
 
 
 def build_parser() -> ArgumentParser:
@@ -54,7 +55,7 @@ def build_parser() -> ArgumentParser:
         choices=tuple(Subject),
     )
     parser.add_argument(
-        "--query",
+        "--topic",
         required=True,
         type=str,
     )
@@ -67,7 +68,7 @@ def parse_args() -> CommandLineArguments:
     return CommandLineArguments(
         year=parsed_args.year,
         subject=parsed_args.subject,
-        query=parsed_args.query,
+        topic=parsed_args.topic,
     )
 
 
@@ -75,8 +76,23 @@ def build_request_payload(arguments: CommandLineArguments) -> AnswerRequest:
     return {
         "year": arguments.year.value,
         "subject": arguments.subject.value,
-        "query": arguments.query,
+        "topic": arguments.topic,
     }
+
+
+def resolve_request_timeout_seconds() -> float:
+    raw_timeout = os.environ.get(REQUEST_TIMEOUT_ENV_VAR)
+    if raw_timeout is None:
+        return DEFAULT_REQUEST_TIMEOUT_SECONDS
+    try:
+        timeout = float(raw_timeout)
+    except ValueError as exc:
+        raise ValueError(
+            f"{REQUEST_TIMEOUT_ENV_VAR} must be a positive number."
+        ) from exc
+    if timeout <= 0:
+        raise ValueError(f"{REQUEST_TIMEOUT_ENV_VAR} must be a positive number.")
+    return timeout
 
 
 def load_response_payload(response_body: str) -> AnswerResponse:
@@ -89,7 +105,11 @@ def load_response_payload(response_body: str) -> AnswerResponse:
     return {"result": result}
 
 
-def post_json(api_url: str, payload: AnswerRequest) -> AnswerResponse:
+def post_json(
+    api_url: str,
+    payload: AnswerRequest,
+    timeout_seconds: float,
+) -> AnswerResponse:
     request_body = json.dumps(payload).encode("utf-8")
     request = Request(
         api_url,
@@ -98,8 +118,14 @@ def post_json(api_url: str, payload: AnswerRequest) -> AnswerResponse:
         method="POST",
     )
     try:
-        with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        with urlopen(request, timeout=timeout_seconds) as response:
             response_body = response.read().decode("utf-8")
+    except TimeoutError as exc:
+        raise RuntimeError(
+            "API request timed out after "
+            f"{timeout_seconds:.0f}s. "
+            f"Set {REQUEST_TIMEOUT_ENV_VAR} to a higher value."
+        ) from exc
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
         raise RuntimeError(
@@ -114,7 +140,8 @@ def main() -> int:
     arguments = parse_args()
     api_url = os.environ.get(API_URL_ENV_VAR, DEFAULT_API_URL)
     payload = build_request_payload(arguments)
-    response = post_json(api_url, payload)
+    timeout_seconds = resolve_request_timeout_seconds()
+    response = post_json(api_url, payload, timeout_seconds)
     print(response["result"])
     return 0
 

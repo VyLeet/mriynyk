@@ -2,7 +2,7 @@ from enum import Enum, StrEnum
 from typing import List, TypeAlias
 from dataclasses import dataclass
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class Year(Enum):
@@ -26,13 +26,16 @@ class Page:
 
 
 
-class QueryRequest(BaseModel):
+class TopicRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     year: Year
     subject: Subject
-    query: str
+    topic: str = Field(validation_alias=AliasChoices("question", "query"))
+    student_info: str = ""
 
 
-class QueryResponse(BaseModel):
+class TopicResponse(BaseModel):
     result: str
 
 

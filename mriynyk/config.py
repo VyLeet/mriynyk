@@ -12,7 +12,7 @@ DATABASE_URL_ENV_VARS: Final[tuple[str, ...]] = (
     "PG_DSN",
     "POSTGRES_URL",
 )
-OPENAI_BASE_URL: Final[str] = "http://146.59.127.106:4000"
+LAPA_PROVIDER_BASE_URL: Final[str] = "http://146.59.127.106:4000"
 EMBEDDING_MODEL: Final[str] = "text-embedding-qwen"
 DEFAULT_SCHEMA_NAME: Final[str] = "public"
 DEFAULT_TABLE_NAME: Final[str] = "pages_for_hackathon"
